@@ -1,0 +1,170 @@
+---
+description: Comprehensive TypeScript error prevention for React/Next.js projects
+globs: ["**/*.tsx", "**/*.ts"]
+alwaysApply: true
+---
+
+# Rule: Prevent Common TypeScript Errors
+
+## Goal
+Prevent the most common TypeScript compilation errors and improve code quality in React/Next.js applications.
+
+## 1. Prop Type Mismatches
+**"Your code passes props that aren't defined"**
+
+### Guidelines:
+- Always check component interfaces before passing props
+- Add new props to the interface first, then pass them
+- Use specific types instead of `any`
+
+```typescript
+// ✅ Correct
+interface ComponentProps {
+  required: string;
+  optional?: number;
+  onSuccess?: () => void;
+  children?: React.ReactNode;
+}
+
+// ❌ Avoid - passing undefined props
+<Component onSuccess={() => {}} /> // If onSuccess not in interface
+```
+
+## 2. Async/Promise Type Errors  
+**"Your async code types are mismatched"**
+
+### Guidelines:
+- Explicitly type async function return values
+- Handle Promise types correctly in useState
+- Don't make useEffect callbacks async
+
+```typescript
+// ✅ Correct
+async function fetchUser(): Promise<User> {
+  return await api.getUser();
+}
+
+const [user, setUser] = useState<User | null>(null);
+
+useEffect(() => {
+  const fetchData = async () => {
+    const data = await api.getData();
+    setData(data);
+  };
+  fetchData();
+}, []);
+
+// ❌ Avoid
+async function fetchUser() { // Missing return type
+  return await api.getUser();
+}
+
+useEffect(async () => { // Don't make useEffect async
+  const data = await api.getData();
+}, []);
+```
+
+## 3. Undefined Property Access
+**"You're accessing properties that might not exist"**
+
+### Guidelines:
+- Use optional chaining for nested properties
+- Handle null/undefined with nullish coalescing
+- Use type guards for complex conditions
+
+```typescript
+// ✅ Correct
+const name = user?.profile?.name;
+const displayName = user?.profile?.name ?? 'Anonymous';
+const firstItem = items?.[0];
+
+if (user && user.profile && user.profile.name) {
+  console.log(user.profile.name);
+}
+
+// ❌ Avoid
+const name = user.profile.name; // Can throw if user/profile is null
+```
+
+## 4. React Event Handler Errors
+**"Your event handlers have wrong parameter types"**
+
+### Guidelines:
+- Use specific React event types
+- Match event types to HTML elements
+- Define clear function signatures for custom handlers
+
+```typescript
+// ✅ Correct
+const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+  e.preventDefault();
+};
+
+const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+};
+
+const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  setValue(e.target.value);
+};
+
+interface Props {
+  onUserSelect: (user: User) => void;
+  onError: (error: string) => void;
+}
+
+// ❌ Avoid
+const handleClick = (e: any) => { // Don't use any
+  e.preventDefault();
+};
+```
+
+## 5. Import and Module Errors
+**"Your module imports/exports are incorrectly typed"**
+
+### Guidelines:
+- Use `import type` for type-only imports
+- Install @types/ packages for third-party libraries
+- Remove unused imports to prevent warnings
+
+```typescript
+// ✅ Correct
+import type { User, ApiResponse } from './types';
+import { fetchUser, validateUser } from './api';
+import { Button, type ButtonProps } from './Button';
+
+// ❌ Avoid
+import { User, ApiResponse, fetchUser } from './types'; // Mixed types and values
+```
+
+## 6. Generic Type Issues
+**"Your generic types are wrong or missing"**
+
+### Guidelines:
+- Specify generic types explicitly when TypeScript can't infer
+- Use proper generic constraints
+- Be consistent with array type syntax
+
+```typescript
+// ✅ Correct
+const [users, setUsers] = useState<User[]>([]);
+const [loading, setLoading] = useState<boolean>(false);
+
+function processData<T extends object>(data: T): T {
+  return data;
+}
+
+// ❌ Avoid
+const [users, setUsers] = useState([]); // Type inference unclear
+```
+
+## Quick Checklist
+Before committing code, verify:
+
+- [ ] All passed props exist in component interfaces
+- [ ] Async functions have explicit return types
+- [ ] Used optional chaining for potentially null properties
+- [ ] Event handlers have correct parameter types  
+- [ ] Import statements distinguish types from values
+- [ ] Generic types are specified where needed
+- [ ] No unused variables or imports

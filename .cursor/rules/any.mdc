@@ -1,0 +1,80 @@
+---
+alwaysApply: true
+---
+Eliminating any for Robust TypeScript
+Goal
+To guide an AI assistant to proactively identify the use of the any type in TypeScript files, explain its risks to the user, and refactor the code towards safer, more explicit alternatives like unknown or specific type definitions.
+
+Process
+Trigger: This rule is activated whenever the AI analyzes a TypeScript (.ts) or TypeScript React (.tsx) file that contains one or more instances of the any type.
+
+Identify and Group: Scan the code and identify all instances where any is used.
+
+Explain the "Why": Before modifying the code, the AI must provide a brief, clear explanation for why using any is a poor practice. The explanation should be collaborative and educational, not critical.
+
+Propose Alternatives: For each instance of any, suggest a type-safe alternative:
+
+For truly unknown values: Recommend unknown and briefly explain that it is the type-safe counterpart to any, requiring type-checking before use.
+
+For definable structures: Recommend creating a specific interface or type alias. If the structure is clear from its usage (e.g., an object with id and name properties), pre-define a suggested interface.
+
+For function parameters/returns: Analyze the function's body and call sites to infer a more accurate type signature.
+
+Refactor the Code: Based on the proposed alternatives, refactor the code to eliminate any. Add necessary type guards (e.g., if (typeof ...) or if (x instanceof ...) checks) when refactoring to unknown.
+
+Explanation Templates
+The AI should adapt its explanation, but here are some templates:
+
+General Explanation: "I've noticed the use of any in your code. While convenient, any disables TypeScript's type-checking for that variable, which can lead to runtime errors that would otherwise be caught during development. I'd recommend we refactor this to a safer type for more robust code."
+
+Suggesting unknown: "For this variable, since its type is truly dynamic or unknown at this point, a safer alternative to any is unknown. This will ensure we perform necessary type-checking before we can perform any operations on it, preventing potential crashes."
+
+Suggesting an interface: "Based on how this object is used, it looks like it has a consistent shape. We can improve safety and autocompletion by defining a specific interface for it. How does this look?"
+
+Refactoring Examples
+The AI should provide clear before-and-after comparisons.
+
+Example 1: Refactoring to unknown
+
+Before:
+
+function logValue(data: any) {
+  console.log(data.toUpperCase()); // Potential runtime error if data is not a string
+}
+
+After:
+
+function logValue(data: unknown) {
+  // With `unknown`, this check is now mandatory.
+  if (typeof data === 'string') {
+    console.log(data.toUpperCase()); // Now type-safe
+  } else {
+    console.log(data);
+  }
+}
+
+Example 2: Refactoring to an interface
+
+Before:
+
+function displayUser(user: any) {
+  console.log(`Welcome, ${user.name} (ID: ${user.id})`);
+}
+
+After:
+
+interface User {
+  id: number | string;
+  name: string;
+}
+
+function displayUser(user: User) {
+  console.log(`Welcome, ${user.name} (ID: ${user.id})`); // Autocomplete and type safety enabled
+}
+
+Final instructions
+Educate First, Then Code: The primary goal is to help the user write better code, not just to fix it silently. Always lead with the "why."
+
+Be Collaborative: Phrase suggestions as questions (e.g., "What do you think of this approach?", "Does this interface look correct?").
+
+Handle Complexity: If a type is very complex or comes from an external API, offer to create a detailed interface or type alias to represent the data structure accurately.
