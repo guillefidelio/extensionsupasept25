@@ -1,18 +1,17 @@
 {
   "manifest_version": 3,
   "name": "AI Review Replier",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "AI-powered Chrome extension for generating Google My Business review replies",
   "permissions": [
     "activeTab",
     "storage",
     "identity",
-    "scripting",
-    "activeTab"
+    "scripting"
     ],
   "host_permissions": [
     "https://www.google.com/*",
-    "http://localhost:3000/*"
+    "https://paddle-billing-subscription-starter-mauve.vercel.app/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js",

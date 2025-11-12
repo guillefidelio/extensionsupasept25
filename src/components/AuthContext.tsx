@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AuthState, User } from '../types';
+import { AuthState, AuthSuccessPayload } from '../types';
 import { getAuthState, signOut } from '../utils/auth';
 
 interface AuthContextType {
   authState: AuthState;
-  login: (user: User) => void;
+  login: (authData: AuthSuccessPayload) => void;
   logout: () => Promise<void>;
   updateAuthState: (updates: Partial<AuthState>) => void;
 }
@@ -43,13 +43,16 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
     }
   };
 
-  const login = (user: User) => {
-    setAuthState({
+  const login = ({ user, token, tokenExpiry }: AuthSuccessPayload) => {
+    setAuthState(prev => ({
+      ...prev,
       isAuthenticated: true,
       user,
+      token: token ?? prev.token,
+      tokenExpiry: tokenExpiry ?? prev.tokenExpiry,
       isLoading: false,
       error: undefined
-    });
+    }));
   };
 
   const logout = async () => {

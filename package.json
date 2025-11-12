@@ -1,6 +1,6 @@
 {
   "name": "chrome-extension-ai-review-replier",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "AI-powered Chrome extension for generating Google My Business review replies",
   "main": "dist/background/service-worker.js",
   "scripts": {

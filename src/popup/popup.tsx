@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { AuthProvider, useAuth } from '../components/AuthContext';
 import { AuthContainer } from '../components/AuthContainer';
-import { User } from '../types';
+import { AuthSuccessPayload } from '../types';
 import './popup.css';
 
 // Main extension interface for authenticated users
@@ -47,11 +47,14 @@ function MainExtensionInterface(): JSX.Element {
           <div className="status-dot connected"></div>
           <span>Connected to ReviewRepl.ai</span>
         </div>
-        
+
+        <div className="credits-indicator">
+          <div className="credits-icon">💎</div>
+          <span className="credits-text">Credits: 50 remaining</span>
+          <span className="credits-hint">Each AI response costs 1 credit</span>
+        </div>
+
         <div className="quick-actions">
-          <button className="action-button primary">
-            📝 Generate Response
-          </button>
           <button className="action-button secondary">
             ⚙️ Settings
           </button>
@@ -61,9 +64,9 @@ function MainExtensionInterface(): JSX.Element {
           <h4>How to use:</h4>
           <ol>
             <li>Navigate to a Google My Business review page</li>
-            <li>Click the extension icon when a review is detected</li>
-            <li>Choose your response mode (Simple or Pro)</li>
-            <li>Click "Generate Response" to create an AI-powered reply</li>
+            <li>The extension will automatically detect reviews and show iframe buttons</li>
+            <li>Click the "Generate Response" button in the iframe to create an AI-powered reply</li>
+            <li>Choose Simple or Pro mode when prompted in the iframe</li>
           </ol>
         </div>
       </div>
@@ -109,9 +112,8 @@ function PopupContent(): JSX.Element {
   if (!isAuthenticated) {
     return (
       <AuthContainer 
-        onAuthSuccess={(user: User) => {
-          // This will be handled by the AuthContext
-          console.log('User authenticated:', user);
+        onAuthSuccess={(authData: AuthSuccessPayload) => {
+          console.log('User authenticated:', authData.user.id);
         }}
       />
     );

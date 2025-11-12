@@ -16,17 +16,39 @@ import {
   BusinessProfileResponse,
   PromptsResponse,
   ReviewData,
-  APIError
+  APIError,
+  DirectAIGenerateResponse
 } from '../types';
 import { getCurrentToken, refreshToken } from './auth';
 
 // Default API configuration
 const DEFAULT_API_CONFIG: APIConfig = {
-  baseUrl: 'http://localhost:3000/api/v1',
+  baseUrl: 'https://paddle-billing-subscription-starter-mauve.vercel.app/api/v1',
   timeout: 30000,
   retryAttempts: 3,
   retryDelay: 1000
 };
+
+function extractErrorMessage(error: unknown): string | undefined {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as Record<string, unknown>).message;
+    if (typeof message === 'string') {
+      return message;
+    }
+  }
+  return undefined;
+}
+
+function errorIncludes(error: unknown, text: string): boolean {
+  const message = extractErrorMessage(error);
+  return message ? message.includes(text) : false;
+}
 
 /**
  * Make an authenticated API request with automatic token refresh
@@ -130,75 +152,66 @@ async function makeRequestWithRetry<T>(
 }
 
 /**
- * Generate AI response for a review (legacy function - now uses job-based API)
+ * Generate AI response for a review using the new direct API
  */
 export async function generateResponse(
   request: GenerateResponseRequest,
   config: APIConfig = DEFAULT_API_CONFIG
 ): Promise<GenerateResponseResponse> {
-  // Create a job using the new API
-  const jobRequest: CreateJobRequest = {
-    reviewData: request.reviewData,
-    mode: request.responseMode,
-    customPrompt: request.businessContext
-  };
-
-  const jobResponse = await createJob(jobRequest, config);
-
-  // Poll for completion
-  return new Promise((resolve, reject) => {
-    const poll = async () => {
-      try {
-        const status = await getJobStatus(jobResponse.jobId, config);
-
-        if (status.status === 'completed' && status.result) {
-          resolve({
-            success: true,
-            response: status.result,
-            requestId: jobResponse.jobId,
-            status: 'completed'
-          });
-        } else if (status.status === 'failed') {
-          resolve({
-            success: false,
-            error: status.error || 'Generation failed',
-            requestId: jobResponse.jobId,
-            status: 'failed'
-          });
-        } else {
-          // Continue polling
-          setTimeout(poll, 2000);
-        }
-      } catch (error) {
-        reject(error);
-      }
+  try {
+    // Format the request according to the new API structure
+    const apiRequest = {
+      review_text: request.reviewData.review_text,
+      reviewer_name: request.reviewData.reviewer_name,
+      review_rating: request.reviewData.review_rating
     };
 
-    poll();
-  });
+    console.log('🚀 Sending direct AI generation request:', {
+      reviewer_name: apiRequest.reviewer_name,
+      review_text_length: apiRequest.review_text?.length,
+      has_rating: !!apiRequest.review_rating
+    });
+
+    const response = await makeAuthenticatedRequest<DirectAIGenerateResponse>('/ai/generate', {
+      method: 'POST',
+      body: JSON.stringify(apiRequest)
+    }, config);
+
+    console.log('✅ AI generation completed successfully');
+
+    return {
+      success: true,
+      response: response.generated_response,
+      requestId: response.request_id || `direct_${Date.now()}`,
+      status: 'completed'
+    };
+
+  } catch (error: unknown) {
+    console.error('❌ AI generation failed:', error);
+    const errorMessage = extractErrorMessage(error) ?? 'AI generation failed';
+
+    return {
+      success: false,
+      error: errorMessage,
+      requestId: `failed_${Date.now()}`,
+      status: 'failed'
+    };
+  }
 }
 
 /**
- * Check the status of a response generation request (legacy function - now uses job status API)
+ * Check the status of a response generation request (deprecated - no longer needed with direct API)
  */
 export async function checkGenerationStatus(
   requestId: string,
   config: APIConfig = DEFAULT_API_CONFIG
 ): Promise<GenerationStatus> {
-  const jobStatus = await getJobStatus(requestId, config);
-
-  return {
-    requestId: jobStatus.jobId,
-    status: jobStatus.status,
-    progress: jobStatus.progress,
-    estimatedTime: jobStatus.estimatedTime,
-    result: jobStatus.result,
-    error: jobStatus.error
-  };
+  console.warn('checkGenerationStatus is deprecated - using direct API, no polling needed');
+  throw new Error('This function is deprecated. Use generateResponse() for direct API calls.');
 }
 
 /**
- * Poll for generation status with configurable interval
+ * Poll for generation status (deprecated - no longer needed with direct API)
  */
 export async function pollGenerationStatus(
   requestId: string,
@@ -206,27 +219,8 @@ export async function pollGenerationStatus(
   config: APIConfig = DEFAULT_API_CONFIG,
   pollInterval: number = 2000
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const poll = async () => {
-      try {
-        const status = await checkGenerationStatus(requestId, config);
-        onStatusUpdate(status);
-        
-        if (status.status === 'completed' && status.result) {
-          resolve(status.result);
-        } else if (status.status === 'failed') {
-          reject(new Error(status.error || 'Generation failed'));
-        } else {
-          // Continue polling
-          setTimeout(poll, pollInterval);
-        }
-      } catch (error) {
-        reject(error);
-      }
-    };
-    
-    poll();
-  });
+  console.warn('pollGenerationStatus is deprecated - using direct API, no polling needed');
+  throw new Error('This function is deprecated. Use generateResponse() for direct API calls.');
 }
 
 /**
@@ -242,7 +236,7 @@ export async function getBusinessContext(
 /**
  * Validate review data before sending to API
  */
-export function validateReviewData(reviewData: any): boolean {
+export function validateReviewData(reviewData: Partial<ReviewData>): boolean {
   if (!reviewData || typeof reviewData !== 'object') {
     return false;
   }
@@ -254,7 +248,7 @@ export function validateReviewData(reviewData: any): boolean {
   const hasReviewText = reviewData.review_text !== undefined && reviewData.review_text !== null;
 
   // Check that we have at least one identifying field
-  const hasIdentifier = reviewData.reviewer_name || reviewData.review_rating;
+  const hasIdentifier = Boolean(reviewData.reviewer_name || reviewData.review_rating);
 
   return hasReviewText && hasIdentifier;
 }
@@ -263,10 +257,10 @@ export function validateReviewData(reviewData: any): boolean {
  * Create a properly formatted API request
  */
 export function createAPIRequest(
-  reviewData: any,
-  responseMode: 'simple' | 'pro',
+  reviewData: ReviewData,
+  responseMode: GenerateResponseRequest['responseMode'],
   businessContext?: string,
-  tone?: string
+  tone?: GenerateResponseRequest['tone']
 ): GenerateResponseRequest {
   if (!validateReviewData(reviewData)) {
     throw new Error('Invalid review data provided');
@@ -276,28 +270,30 @@ export function createAPIRequest(
     reviewData,
     responseMode,
     businessContext,
-    tone: tone as any
+    tone
   };
 }
 
 /**
  * Handle API errors and provide user-friendly messages
  */
-export function handleAPIError(error: any): string {
-  if (error instanceof Error) {
-    if (error.message.includes('timeout')) {
+export function handleAPIError(error: unknown): string {
+  const message = extractErrorMessage(error);
+
+  if (typeof message === 'string') {
+    if (message.includes('timeout')) {
       return 'Request timed out. Please try again.';
     }
-    if (error.message.includes('401') || error.message.includes('Authentication')) {
+    if (message.includes('401') || message.includes('Authentication')) {
       return 'Authentication failed. Please log in again.';
     }
-    if (error.message.includes('429')) {
+    if (message.includes('429')) {
       return 'Too many requests. Please wait a moment before trying again.';
     }
-    if (error.message.includes('500')) {
+    if (message.includes('500')) {
       return 'Server error. Please try again later.';
     }
-    return error.message;
+    return message;
   }
   
   return 'An unexpected error occurred. Please try again.';
@@ -327,9 +323,9 @@ export async function testAuthenticatedConnectivity(config: APIConfig = DEFAULT_
     // Test business profile endpoint (this will fail with 401 if not authenticated)
     await getBusinessProfile(config);
     return true;
-  } catch (error: any) {
+  } catch (error: unknown) {
     // If we get a 401, it means the API is working but user is not authenticated
-    if (error.message?.includes('401') || error.message?.includes('Authentication')) {
+    if (errorIncludes(error, '401') || errorIncludes(error, 'Authentication')) {
       return false; // API is working, but authentication failed
     }
     // If we get a different error, the API might not be reachable
@@ -365,74 +361,37 @@ export async function getCustomPrompts(
 }
 
 /**
- * Create a new AI generation job
+ * Create a new AI generation job (deprecated - use generateAIResponse instead)
  */
 export async function createJob(
   request: CreateJobRequest,
   config: APIConfig = DEFAULT_API_CONFIG
 ): Promise<CreateJobResponse> {
-  // Format request according to API expectations
-  const apiRequest = {
-    job_type: 'review_response',
-    payload: request
-  };
-
-  return makeRequestWithRetry(async () => {
-    return makeAuthenticatedRequest<CreateJobResponse>('/jobs', {
-      method: 'POST',
-      body: JSON.stringify(apiRequest)
-    }, config);
-  }, config);
+  console.warn('createJob is deprecated - using direct API, no job creation needed');
+  throw new Error('This function is deprecated. Use generateAIResponse() for direct API calls.');
 }
 
 /**
- * Get job status and results
- * Note: This endpoint may not exist in your API yet
+ * Get job status and results (deprecated - no longer needed with direct API)
  */
 export async function getJobStatus(
   jobId: string,
   config: APIConfig = DEFAULT_API_CONFIG
 ): Promise<JobStatusResponseGuide> {
-  try {
-    return await makeRequestWithRetry(async () => {
-      return makeAuthenticatedRequest<JobStatusResponseGuide>(`/jobs/${jobId}`, {
-        method: 'GET'
-      }, config);
-    }, config);
-  } catch (error: any) {
-    // If 404, the endpoint doesn't exist - return a simulated response
-    if (error.message?.includes('404') || error.message?.includes('NotFound')) {
-      console.warn(`Job status endpoint not implemented. Job ID: ${jobId}`);
-      // Return a mock response in the old format to maintain compatibility
-      return {
-        jobId: jobId,
-        status: 'pending', // Assume pending since we can't check
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      } as any; // Type assertion for compatibility
-    }
-    throw error;
-  }
+  console.warn('getJobStatus is deprecated - using direct API, no job status checking needed');
+  throw new Error('This function is deprecated. Use generateAIResponse() for direct API calls.');
 }
 
 /**
- * Get user's job history
+ * Get user's job history (deprecated - no longer needed with direct API)
  */
 export async function getJobsHistory(
   page: number = 1,
   pageSize: number = 20,
   config: APIConfig = DEFAULT_API_CONFIG
 ): Promise<JobsHistoryResponse> {
-  return makeRequestWithRetry(async () => {
-    const params = new URLSearchParams({
-      page: page.toString(),
-      pageSize: pageSize.toString()
-    });
-
-    return makeAuthenticatedRequest<JobsHistoryResponse>(`/me/jobs?${params}`, {
-      method: 'GET'
-    }, config);
-  }, config);
+  console.warn('getJobsHistory is deprecated - using direct API, no job history tracking needed');
+  throw new Error('This function is deprecated. Job history is no longer available with the direct API.');
 }
 
 /**
@@ -455,14 +414,12 @@ export async function updateBusinessProfile(
 // ============================================================================
 
 /**
- * Create AI generation job according to the integration guide
+ * Generate AI response directly (replaces createAIGenerationJob)
  */
-export async function createAIGenerationJob(
+export async function generateAIResponse(
   reviewData: ReviewData,
-  mode: 'simple' | 'pro',
-  customPrompt?: string,
   config: APIConfig = DEFAULT_API_CONFIG
-): Promise<CreateJobResponseNew> {
+): Promise<DirectAIGenerateResponse> {
   // Validate required fields
   if (!reviewData.review_text) {
     throw new Error('Review text is required');
@@ -472,48 +429,22 @@ export async function createAIGenerationJob(
   if (reviewData.review_text.trim().length === 0) {
     reviewData.review_text = "[Review with no text content]";
     console.log('🔄 API: Empty review text replaced with placeholder');
-    console.log('📊 Review data:', {
-      reviewer_name: reviewData.reviewer_name,
-      review_rating: reviewData.review_rating,
-      original_text_length: reviewData.review_text.length,
-      is_placeholder: true
-    });
   }
 
-  if (!mode || !['simple', 'pro'].includes(mode)) {
-    throw new Error('Valid mode (simple or pro) is required');
-  }
-
-  if (mode === 'pro' && !customPrompt) {
-    throw new Error('Custom prompt is required for Pro mode');
-  }
-
-  const payload: CreateJobPayload = {
-    job_type: 'ai_generation',
-    payload: {
-      review_text: reviewData.review_text,
-      review_rating: reviewData.review_rating,
-      reviewer_name: reviewData.reviewer_name,
-      mode,
-      custom_prompt: customPrompt,
-      website_url: reviewData.website_url || window.location.href,
-      user_preferences: {
-        reviewerName: reviewData.reviewer_name,
-        responseStyle: mode === 'simple' ? 'professional' : 'custom'
-      }
-    }
+  const payload = {
+    review_text: reviewData.review_text,
+    reviewer_name: reviewData.reviewer_name,
+    review_rating: reviewData.review_rating
   };
 
-  console.log('Creating AI generation job:', {
-    mode,
-    hasCustomPrompt: !!customPrompt,
+  console.log('🚀 Generating AI response directly:', {
+    reviewerName: reviewData.reviewer_name,
     reviewTextLength: reviewData.review_text.length,
-    reviewer: reviewData.reviewer_name,
     isEmptyReview: reviewData.review_text === "[Review with no text content]"
   });
 
-  return makeRequestWithRetry(async () => {
-    return makeAuthenticatedRequest<CreateJobResponseNew>('/jobs', {
+  return makeRequestWithRetry<DirectAIGenerateResponse>(async () => {
+    return makeAuthenticatedRequest<DirectAIGenerateResponse>('/ai/generate', {
       method: 'POST',
       body: JSON.stringify(payload)
     }, config);
@@ -521,97 +452,15 @@ export async function createAIGenerationJob(
 }
 
 /**
- * Poll job status according to the integration guide
+ * Poll job status (deprecated - no longer needed with direct API)
  */
 export async function pollJobStatus(
   jobId: string,
   config: APIConfig = DEFAULT_API_CONFIG,
   onProgress?: (status: string, progress?: number) => void
-): Promise<JobStatusResponseNew['job']['result']> {
-  const pollInterval = 2000; // 2 seconds base interval
-  const maxAttempts = 150; // 5 minutes max
-  let attempts = 0;
-
-  console.log(`Starting to poll job status for job: ${jobId}`);
-
-  while (attempts < maxAttempts) {
-    try {
-      attempts++;
-      console.log(`Polling attempt ${attempts}/${maxAttempts} for job: ${jobId}`);
-
-      const response = await makeRequestWithRetry(async () => {
-        return makeAuthenticatedRequest<JobStatusResponseNew>(`/jobs/${jobId}`, {
-          method: 'GET'
-        }, config);
-      }, config);
-
-      if (!response.success || !response.job) {
-        throw new Error('Invalid response format from job status API');
-      }
-
-      const job = response.job;
-      console.log(`Job status: ${job.status} (attempt ${attempts}/${maxAttempts})`);
-
-      // Call progress callback if provided
-      if (onProgress) {
-        let progress = 0;
-        switch (job.status) {
-          case 'pending':
-            progress = 10;
-            break;
-          case 'processing':
-            progress = 50;
-            break;
-          case 'completed':
-            progress = 100;
-            break;
-          case 'failed':
-            progress = 0;
-            break;
-        }
-        onProgress(job.status, progress);
-      }
-
-      switch (job.status) {
-        case 'completed':
-          if (!job.result) {
-            throw new Error('Job completed but no result provided');
-          }
-          console.log('✅ Job completed successfully!');
-          return job.result;
-
-        case 'failed':
-          const errorMsg = job.error || 'AI generation failed';
-          console.error('❌ Job failed:', errorMsg);
-          throw new Error(`AI generation failed: ${errorMsg}`);
-
-        case 'pending':
-        case 'processing':
-          // Continue polling with exponential backoff
-          const delay = Math.min(pollInterval * Math.pow(1.2, attempts - 1), 10000); // Max 10 seconds
-          console.log(`⏳ Waiting ${Math.round(delay/1000)}s before next poll...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          break;
-
-        default:
-          throw new Error(`Unknown job status: ${job.status}`);
-      }
-
-    } catch (error: any) {
-      if (error.message?.includes('404')) {
-        throw new Error(`Job not found: ${jobId}. The job may have been deleted or you may not have permission to access it.`);
-      }
-      if (error.message?.includes('401')) {
-        throw new Error('Authentication failed. Please log in again.');
-      }
-      if (error.message?.includes('403')) {
-        throw new Error('Access denied. You do not have permission to access this job.');
-      }
-      throw error;
-    }
-  }
-
-  throw new Error(`Job timed out after ${maxAttempts} attempts (${Math.round(maxAttempts * pollInterval / 1000)}s). The AI generation may be taking longer than expected.`);
+): Promise<never> {
+  console.warn('pollJobStatus is deprecated - using direct API, no polling needed');
+  throw new Error('This function is deprecated. Use generateAIResponse() for direct API calls.');
 }
 
 /**
@@ -645,60 +494,53 @@ export async function getUserPrompts(
 /**
  * Handle API errors according to the integration guide
  */
-export function handleAPIErrorGuide(error: any): APIError {
-  if (error instanceof Error) {
-    if (error.message.includes('401') || error.message.includes('Authentication')) {
-      return {
-        code: 'AUTH_FAILED',
-        message: 'Authentication failed. Please log in again.',
-        details: error
-      };
-    }
-    if (error.message.includes('402') || error.message.includes('credits')) {
-      return {
-        code: 'INSUFFICIENT_CREDITS',
-        message: 'Insufficient credits. Please upgrade your plan or purchase more credits.',
-        details: error
-      };
-    }
-    if (error.message.includes('404') || error.message.includes('NotFound')) {
-      return {
-        code: 'NOT_FOUND',
-        message: 'The requested resource was not found.',
-        details: error
-      };
-    }
-    if (error.message.includes('429') || error.message.includes('rate limit')) {
-      return {
-        code: 'RATE_LIMITED',
-        message: 'Too many requests. Please wait a moment before trying again.',
-        details: error
-      };
-    }
-    if (error.message.includes('500') || error.message.includes('Internal Server Error')) {
-      return {
-        code: 'SERVER_ERROR',
-        message: 'Server error. Please try again later.',
-        details: error
-      };
-    }
-    if (error.message.includes('network') || error.message.includes('fetch')) {
-      return {
-        code: 'NETWORK_ERROR',
-        message: 'Network error. Please check your internet connection and try again.',
-        details: error
-      };
-    }
+export function handleAPIErrorGuide(error: unknown): APIError {
+  if (errorIncludes(error, '401') || errorIncludes(error, 'Authentication')) {
     return {
-      code: 'UNKNOWN_ERROR',
-      message: error.message,
+      code: 'AUTH_FAILED',
+      message: 'Authentication failed. Please log in again.',
+      details: error
+    };
+  }
+  if (errorIncludes(error, '402') || errorIncludes(error, 'credits')) {
+    return {
+      code: 'INSUFFICIENT_CREDITS',
+      message: 'Insufficient credits. Please upgrade your plan or purchase more credits.',
+      details: error
+    };
+  }
+  if (errorIncludes(error, '404') || errorIncludes(error, 'NotFound')) {
+    return {
+      code: 'NOT_FOUND',
+      message: 'The requested resource was not found.',
+      details: error
+    };
+  }
+  if (errorIncludes(error, '429') || errorIncludes(error, 'rate limit')) {
+    return {
+      code: 'RATE_LIMITED',
+      message: 'Too many requests. Please wait a moment before trying again.',
+      details: error
+    };
+  }
+  if (errorIncludes(error, '500') || errorIncludes(error, 'Internal Server Error')) {
+    return {
+      code: 'SERVER_ERROR',
+      message: 'Server error. Please try again later.',
+      details: error
+    };
+  }
+  if (errorIncludes(error, 'network') || errorIncludes(error, 'fetch')) {
+    return {
+      code: 'NETWORK_ERROR',
+      message: 'Network error. Please check your internet connection and try again.',
       details: error
     };
   }
 
   return {
     code: 'UNKNOWN_ERROR',
-    message: 'An unexpected error occurred. Please try again.',
+    message: extractErrorMessage(error) ?? 'An unexpected error occurred. Please try again.',
     details: error
   };
 }

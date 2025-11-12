@@ -1,8 +1,34 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient, type Session } from '@supabase/supabase-js';
 import { AuthState, User, LoginFormData, LoginResponse, FormErrors, LoginAttempts, STORAGE_KEYS } from '../types';
 import { CONFIG } from '../config';
 
 let supabaseClient: SupabaseClient | null = null;
+
+function resolveSessionExpiry(session: Session): number | undefined {
+  if (!session) {
+    return undefined;
+  }
+
+  if (session.expires_at) {
+    if (typeof session.expires_at === 'number') {
+      const expiresAtMs = session.expires_at * 1000;
+      if (Number.isFinite(expiresAtMs)) {
+        return expiresAtMs;
+      }
+    } else {
+      const parsed = Date.parse(session.expires_at);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  if (typeof session.expires_in === 'number') {
+    return Date.now() + session.expires_in * 1000;
+  }
+
+  return undefined;
+}
 
 /**
  * Initialize Supabase client
@@ -34,9 +60,19 @@ async function getStoredToken(): Promise<string | null> {
 /**
  * Store authentication token
  */
-async function storeToken(token: string): Promise<void> {
+async function storeToken(token: string, tokenExpiry?: number): Promise<void> {
   try {
-    await chrome.storage.local.set({ [CONFIG.STORAGE_KEYS.AUTH_TOKEN]: token });
+    const items: Record<string, unknown> = {
+      [CONFIG.STORAGE_KEYS.AUTH_TOKEN]: token
+    };
+
+    if (typeof tokenExpiry === 'number') {
+      items[CONFIG.STORAGE_KEYS.TOKEN_EXPIRES_AT] = tokenExpiry;
+    } else {
+      await chrome.storage.local.remove(CONFIG.STORAGE_KEYS.TOKEN_EXPIRES_AT);
+    }
+
+    await chrome.storage.local.set(items);
   } catch (error) {
     console.error('Error storing token:', error);
     throw error;
@@ -48,7 +84,10 @@ async function storeToken(token: string): Promise<void> {
  */
 async function removeStoredToken(): Promise<void> {
   try {
-    await chrome.storage.local.remove(CONFIG.STORAGE_KEYS.AUTH_TOKEN);
+    await chrome.storage.local.remove([
+      CONFIG.STORAGE_KEYS.AUTH_TOKEN,
+      CONFIG.STORAGE_KEYS.TOKEN_EXPIRES_AT
+    ]);
   } catch (error) {
     console.error('Error removing token:', error);
     throw error;
@@ -65,6 +104,20 @@ async function getStoredUserData(): Promise<User | null> {
   } catch (error) {
     console.error('Error retrieving user data:', error);
     return null;
+  }
+}
+
+async function getStoredTokenExpiry(): Promise<number | undefined> {
+  try {
+    const result = await chrome.storage.local.get(CONFIG.STORAGE_KEYS.TOKEN_EXPIRES_AT);
+    const expiry = result[CONFIG.STORAGE_KEYS.TOKEN_EXPIRES_AT];
+    if (typeof expiry === 'number' && Number.isFinite(expiry)) {
+      return expiry;
+    }
+    return undefined;
+  } catch (error) {
+    console.error('Error retrieving token expiry:', error);
+    return undefined;
   }
 }
 
@@ -232,8 +285,10 @@ export async function signIn(email: string, password: string): Promise<LoginResp
         updated_at: data.user.updated_at
       };
 
+      const tokenExpiry = resolveSessionExpiry(data.session);
+
       // Store token and user data
-      await storeToken(data.session.access_token);
+      await storeToken(data.session.access_token, tokenExpiry);
       await storeUserData(user);
       
       // Reset failed login attempts
@@ -242,7 +297,8 @@ export async function signIn(email: string, password: string): Promise<LoginResp
       return {
         success: true,
         user,
-        token: data.session.access_token
+        token: data.session.access_token,
+        tokenExpiry
       };
     }
 
@@ -311,14 +367,17 @@ export async function signUp(email: string, password: string, name?: string): Pr
         updated_at: data.user.updated_at
       };
 
+      const tokenExpiry = resolveSessionExpiry(data.session);
+
       // Store token and user data
-      await storeToken(data.session.access_token);
+      await storeToken(data.session.access_token, tokenExpiry);
       await storeUserData(user);
 
       return {
         success: true,
         user,
-        token: data.session.access_token
+        token: data.session.access_token,
+        tokenExpiry
       };
     }
 
@@ -360,8 +419,15 @@ export async function getAuthState(): Promise<AuthState> {
   try {
     const token = await getStoredToken();
     const userData = await getStoredUserData();
+    const tokenExpiry = await getStoredTokenExpiry();
 
     if (!token || !userData) {
+      return { isAuthenticated: false };
+    }
+
+    if (tokenExpiry && tokenExpiry <= Date.now()) {
+      await removeStoredToken();
+      await chrome.storage.local.remove(CONFIG.STORAGE_KEYS.USER_DATA);
       return { isAuthenticated: false };
     }
 
@@ -379,7 +445,8 @@ export async function getAuthState(): Promise<AuthState> {
     return {
       isAuthenticated: true,
       user: userData,
-      token
+      token,
+      tokenExpiry
     };
   } catch (error) {
     console.error('Error getting auth state:', error);
@@ -400,7 +467,8 @@ export async function refreshToken(): Promise<string | null> {
     }
 
     if (data.session) {
-      await storeToken(data.session.access_token);
+      const tokenExpiry = resolveSessionExpiry(data.session);
+      await storeToken(data.session.access_token, tokenExpiry);
       return data.session.access_token;
     }
 

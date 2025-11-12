@@ -1,23 +1,27 @@
 import React, { useState } from 'react';
 import { LoginForm } from './LoginForm';
 import { SignupForm } from './SignupForm';
-import { User } from '../types';
+import { AuthSuccessPayload } from '../types';
+import { useAuth } from './AuthContext';
 
 interface AuthContainerProps {
-  onAuthSuccess: (user: User) => void;
+  onAuthSuccess: (authData: AuthSuccessPayload) => void;
 }
 
 type AuthMode = 'login' | 'signup';
 
 export function AuthContainer({ onAuthSuccess }: AuthContainerProps): JSX.Element {
   const [authMode, setAuthMode] = useState<AuthMode>('login');
+  const { login } = useAuth();
 
-  const handleLoginSuccess = (user: User) => {
-    onAuthSuccess(user);
+  const handleLoginSuccess = (authData: AuthSuccessPayload) => {
+    login(authData);
+    onAuthSuccess(authData);
   };
 
-  const handleSignupSuccess = (user: User) => {
-    onAuthSuccess(user);
+  const handleSignupSuccess = (authData: AuthSuccessPayload) => {
+    login(authData);
+    onAuthSuccess(authData);
   };
 
   const switchToSignup = () => {

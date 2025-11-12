@@ -4,22 +4,18 @@
 console.log('AI Review Responder Background Service Worker loaded');
 
 // API Configuration - Update these with your actual API endpoints
-const API_BASE_URL = 'http://localhost:3000/api/v1'; // Development
-const API_BASE_URL_PROD = 'https://your-production-domain.com/api/v1'; // Production
-
-// Update this to point to your production API when ready
-const CURRENT_API_BASE_URL = API_BASE_URL; // Change to API_BASE_URL_PROD for production
+const API_BASE_URL = 'https://paddle-billing-subscription-starter-mauve.vercel.app/api/v1'; // Production
 
 // Constants for API endpoints - using your actual API endpoints
 const API_ENDPOINTS = {
   BUSINESS_PROFILE: '/me/business-profile',
   PROMPTS: '/me/prompts',
-  JOBS: '/jobs'
+  AI_GENERATE: '/ai/generate'
 };
 
 // API Configuration object for the new client
 const API_CONFIG = {
-  baseUrl: CURRENT_API_BASE_URL,
+  baseUrl: API_BASE_URL,
   timeout: 30000,
   retryAttempts: 3,
   retryDelay: 1000
@@ -27,52 +23,45 @@ const API_CONFIG = {
 
 // Import the new API functions
 import {
-  createAIGenerationJob,
-  pollJobStatus,
+  generateAIResponse,
   handleAPIErrorGuide,
   getBusinessProfileGuide,
   getUserPrompts
 } from '../utils/api';
+import type {
+  AIResponseErrorPayload,
+  AIResponsePayload,
+  AIResponseRequestMessage,
+  AIResponseResultMessage,
+  AIResponseSuccessPayload,
+  AuthStatusResponse,
+  DirectAIGenerateResponse,
+  ChromeMessage
+} from '../types';
 
-// Types for API responses
-interface APIJobResponse {
-  success: boolean;
-  job: {
-    id: string;
-    status: 'pending' | 'processing' | 'completed' | 'failed';
-    created_at: string;
-    result?: {
-      generated_response: string;
-      confidence_score: number;
-      processing_time_ms: number;
-      tokens_used: number;
-    };
-    error?: string;
-  };
-  error?: string; // Add error property at response level for API errors
+type BackgroundMessage = AIResponseRequestMessage | ChromeMessage;
+
+function isAIResponseRequestMessage(message: BackgroundMessage): message is AIResponseRequestMessage {
+  if (message.type !== 'GENERATE_AI_RESPONSE') {
+    return false;
+  }
+
+  const candidate = message as AIResponseRequestMessage;
+  return typeof candidate.data === 'object' && candidate.data !== null && 'reviewData' in candidate.data;
 }
 
-interface APISessionData {
-  success: boolean;
-  user: {
-    id: string;
-    email: string;
-    answering_mode_selected: string;
-    credits_available: number;
-  };
-  business_profile: {
-    business_name: string;
-    business_main_category: string;
-    response_tone: string;
-    language: string;
-    greetings: string;
-    signatures: string;
-  };
-  prompts: Array<{
-    id: string;
-    content: string;
-    rating: number;
-  }>;
+function extractErrorMessage(error: unknown): string | undefined {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  return undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
 }
 
 // Handle extension installation
@@ -81,119 +70,151 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 // Handle messages from content scripts and popup
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendResponse) => {
   console.log('Background message received:', message);
 
-  // Handle different message types
   switch (message.type) {
-    case 'GENERATE_AI_RESPONSE':
+    case 'GENERATE_AI_RESPONSE': {
+      if (!isAIResponseRequestMessage(message)) {
+        sendResponse({ success: false, error: 'Invalid AI response request' });
+        return false;
+      }
+
       handleAIGenerationRequest(message, sender)
         .then(result => sendResponse(result))
-        .catch(error => sendResponse({ success: false, error: error.message }));
-      return true; // Keep the message channel open for async response
+        .catch((error: unknown) => {
+          sendResponse({
+            success: false,
+            error: extractErrorMessage(error) ?? 'Unexpected error occurred'
+          });
+        });
+      return true;
+    }
 
     case 'AUTH_STATUS':
       checkAuthStatus()
         .then(result => sendResponse(result))
-        .catch(error => sendResponse({ success: false, error: error.message }));
+        .catch((error: unknown) => {
+          sendResponse({
+            success: false,
+            error: extractErrorMessage(error) ?? 'Failed to check authentication status'
+          });
+        });
       return true;
 
     default:
       console.log('Unknown message type:', message.type);
       sendResponse({ success: false, error: 'Unknown message type' });
-      return;
+      return false;
   }
 });
 
 /**
  * Handle AI generation request from content script
  */
-async function handleAIGenerationRequest(message: any, sender: chrome.runtime.MessageSender): Promise<any> {
+async function handleAIGenerationRequest(
+  message: AIResponseRequestMessage,
+  sender: chrome.runtime.MessageSender
+): Promise<AIResponsePayload> {
   try {
     console.log('Processing AI generation request:', message);
 
     // Validate message data
-    if (!message.data?.reviewData) {
-      throw new Error('No review data provided');
-    }
-
-    const reviewData = message.data.reviewData;
-    const mode = message.data.mode || 'simple';
-    const customPrompt = message.data.customPrompt;
+    const { reviewData } = message.data;
 
     console.log('Processing request:', {
-      mode,
-      hasCustomPrompt: !!customPrompt,
       reviewer: reviewData.reviewer_name,
       rating: reviewData.review_rating,
       reviewTextLength: reviewData.review_text?.length
     });
 
-    // Step 1: Create AI generation job using new API
-    console.log('🚀 Creating AI generation job...');
-    const jobResponse = await createAIGenerationJob(reviewData, mode, customPrompt, API_CONFIG);
+    // Step 1: Generate AI response directly using new API
+    console.log('🚀 Generating AI response directly...');
+    const result = await generateAIResponse(reviewData, API_CONFIG) as DirectAIGenerateResponse;
 
-    if (!jobResponse.success || !jobResponse.job) {
-      throw new Error('Failed to create AI job');
+    if (!result.success) {
+      throw new Error(result.error || 'AI generation failed');
     }
 
-    const jobId = jobResponse.job.id;
-    console.log('✅ AI job created successfully:', jobId);
-
-    // Step 2: Poll for job completion with progress updates
-    console.log('⏳ Starting to poll for job completion...');
-
-    const progressCallback = (status: string, progress?: number) => {
-      console.log(`📊 Job progress: ${status} (${progress || 0}%)`);
-
-      // Send progress update to content script
-      sendResponseToContentScript(sender, {
-        type: 'PROGRESS_UPDATE',
-        status,
-        progress,
-        jobId
-      });
-    };
-
-    const result = await pollJobStatus(jobId, API_CONFIG, progressCallback);
-
-    if (!result) {
-      throw new Error('Job completed but no result was provided');
-    }
-
-    console.log('✅ Job completed successfully:', {
+    console.log('✅ AI response generated successfully:', {
       responseLength: result.generated_response?.length || 0,
       confidence: result.confidence_score,
       processingTime: result.processing_time_ms,
-      tokensUsed: result.tokens_used
+      tokensUsed: result.tokens_used,
+      creditsUsed: result.credits_used,
+      creditsRemaining: result.credits_remaining
     });
 
-    // Step 3: Send final result back to content script
-    await sendResponseToContentScript(sender, {
+    // Step 2: Send final result back to content script
+    const successPayload: AIResponseSuccessPayload = {
       success: true,
       aiResponse: result.generated_response || '',
-      jobId: jobId,
+      requestId: result.request_id ?? `direct_${Date.now()}`,
       confidence: result.confidence_score,
       processingTime: result.processing_time_ms,
       tokensUsed: result.tokens_used,
       modelUsed: result.model_used,
-      toneUsed: result.tone_used
-    });
+      creditsUsed: result.credits_used,
+      creditsRemaining: result.credits_remaining
+    };
 
-    return { success: true, jobId };
+    await sendResponseToContentScript(sender, successPayload);
 
-  } catch (error) {
+    return successPayload;
+
+  } catch (error: unknown) {
     console.error('❌ Error in AI generation request:', error);
 
     // Handle error using the guide's error handler
     const apiError = handleAPIErrorGuide(error);
 
-    // Send error back to content script
-    await sendResponseToContentScript(sender, {
+    const errorPayload: AIResponseErrorPayload = {
       success: false,
       error: apiError.message,
       errorCode: apiError.code
-    });
+    };
+
+    const errorMessage = extractErrorMessage(error) ?? '';
+    const errorRecord = asRecord(error);
+
+    // Handle specific error types from the new API
+    if (errorMessage.includes('402') || apiError.code === 'INSUFFICIENT_CREDITS') {
+      // Insufficient credits error
+      const creditsAvailable = typeof errorRecord?.['credits_available'] === 'number'
+        ? errorRecord['credits_available'] as number
+        : undefined;
+      const creditsRequired = typeof errorRecord?.['credits_required'] === 'number'
+        ? errorRecord['credits_required'] as number
+        : undefined;
+
+      Object.assign(errorPayload, {
+        errorType: 'INSUFFICIENT_CREDITS' as const,
+        creditsAvailable,
+        creditsRequired,
+        suggestion: 'Please upgrade your plan or purchase more credits.'
+      });
+    } else if (errorMessage.includes('400') || apiError.code === 'VALIDATION_ERROR') {
+      // Validation error
+      Object.assign(errorPayload, {
+        errorType: 'VALIDATION_ERROR' as const,
+        suggestion: 'Please check your input and try again.'
+      });
+    } else if (errorMessage.includes('401') || apiError.code === 'AUTH_FAILED') {
+      // Authentication error
+      Object.assign(errorPayload, {
+        errorType: 'AUTH_FAILED' as const,
+        suggestion: 'Please log in again.'
+      });
+    } else if (errorMessage.includes('500') || apiError.code === 'SERVER_ERROR') {
+      // Server error
+      Object.assign(errorPayload, {
+        errorType: 'SERVER_ERROR' as const,
+        suggestion: 'Please try again later.'
+      });
+    }
+
+    // Send error back to content script
+    await sendResponseToContentScript(sender, errorPayload);
 
     throw error;
   }
@@ -217,12 +238,15 @@ async function getStoredAuthToken(): Promise<string | null> {
 /**
  * Send response back to content script
  */
-async function sendResponseToContentScript(sender: chrome.runtime.MessageSender, responseData: any): Promise<void> {
+async function sendResponseToContentScript(
+  sender: chrome.runtime.MessageSender,
+  responseData: AIResponsePayload
+): Promise<void> {
   try {
     // Try to send message back through the same tab
     if (sender.tab?.id) {
-      const message = {
-        type: responseData.type || 'AI_RESPONSE_RESULT',
+      const message: AIResponseResultMessage = {
+        type: 'AI_RESPONSE_RESULT',
         data: responseData,
         timestamp: Date.now()
       };
@@ -238,7 +262,7 @@ async function sendResponseToContentScript(sender: chrome.runtime.MessageSender,
 /**
  * Check authentication status using the new API functions
  */
-async function checkAuthStatus(): Promise<any> {
+async function checkAuthStatus(): Promise<AuthStatusResponse> {
   try {
     const token = await getStoredAuthToken();
 
@@ -267,7 +291,7 @@ async function checkAuthStatus(): Promise<any> {
           id: promptsResponse.prompts?.[0]?.id || 'user', // Use first prompt ID as fallback
           email: 'user@example.com', // We don't have email from your API
           answering_mode_selected: 'simple', // Default
-          credits_available: 100 // Default - you may want to fetch this from your API
+          credits_available: 100 // Default - could be updated from API in future
         },
         businessProfile: {
           business_name: businessProfile.business_name,
@@ -280,10 +304,12 @@ async function checkAuthStatus(): Promise<any> {
         prompts: promptsResponse.prompts || []
       };
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Error validating token with API:', error);
 
-      if (error.message?.includes('401') || error.message?.includes('Authentication')) {
+      const errorMessage = extractErrorMessage(error) ?? '';
+
+      if (errorMessage.includes('401') || errorMessage.includes('Authentication')) {
         // Token is invalid, clear it
         console.log('🗑️ Clearing invalid token');
         await chrome.storage.local.remove(['auth_token']);
@@ -291,7 +317,7 @@ async function checkAuthStatus(): Promise<any> {
       }
 
       // For other errors, assume token is still valid but API is down
-      console.log('⚠️ API error but keeping token (may be temporary):', error.message);
+      console.log('⚠️ API error but keeping token (may be temporary):', errorMessage);
       return {
         isAuthenticated: true, // Assume still authenticated
         user: {
@@ -313,11 +339,11 @@ async function checkAuthStatus(): Promise<any> {
       };
     }
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ Error checking auth status:', error);
     return {
       isAuthenticated: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: extractErrorMessage(error) ?? 'Unknown error'
     };
   }
 }

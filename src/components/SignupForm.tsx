@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { signUp } from '../utils/auth';
-import { LoginFormData, FormErrors, User } from '../types';
+import { LoginFormData, FormErrors, AuthSuccessPayload } from '../types';
 
 interface SignupFormProps {
-  onSignupSuccess: (user: User) => void;
+  onSignupSuccess: (authData: AuthSuccessPayload) => void;
   onSwitchToLogin: () => void;
 }
 
@@ -79,7 +79,11 @@ export function SignupForm({ onSignupSuccess, onSwitchToLogin }: SignupFormProps
       const response = await signUp(formData.email, formData.password, formData.name);
       
       if (response.success && response.user) {
-        onSignupSuccess(response.user);
+        onSignupSuccess({
+          user: response.user,
+          token: response.token,
+          tokenExpiry: response.tokenExpiry
+        });
       } else {
         setGeneralError(response.error || 'Registration failed. Please try again.');
       }

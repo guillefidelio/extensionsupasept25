@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { signIn, getRemainingLockoutTime } from '../utils/auth';
-import { LoginFormData, FormErrors, User } from '../types';
+import { LoginFormData, FormErrors, AuthSuccessPayload } from '../types';
 
 interface LoginFormProps {
-  onLoginSuccess: (user: User) => void;
+  onLoginSuccess: (authData: AuthSuccessPayload) => void;
   onSwitchToSignup: () => void;
 }
 
@@ -18,35 +18,49 @@ export function LoginForm({ onLoginSuccess, onSwitchToSignup }: LoginFormProps):
   const [generalError, setGeneralError] = useState<string>('');
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutTime, setLockoutTime] = useState(0);
+  const lockoutIntervalRef = useRef<number | null>(null);
+
+  const clearLockoutInterval = () => {
+    if (lockoutIntervalRef.current !== null) {
+      window.clearInterval(lockoutIntervalRef.current);
+      lockoutIntervalRef.current = null;
+    }
+  };
 
   // Check for account lockout on component mount
   useEffect(() => {
     checkLockoutStatus();
+
+    return () => {
+      clearLockoutInterval();
+    };
   }, []);
 
   const checkLockoutStatus = async () => {
+    clearLockoutInterval();
+
     const remainingTime = await getRemainingLockoutTime();
     if (remainingTime > 0) {
       setIsLocked(true);
       setLockoutTime(remainingTime);
       
       // Update lockout time every minute
-      const interval = setInterval(async () => {
+      lockoutIntervalRef.current = window.setInterval(async () => {
         const newTime = await getRemainingLockoutTime();
         if (newTime <= 0) {
           setIsLocked(false);
           setLockoutTime(0);
-          clearInterval(interval);
+          clearLockoutInterval();
         } else {
           setLockoutTime(newTime);
         }
       }, 60000);
       
-      return () => clearInterval(interval);
+      return;
     }
-    
-    // Return undefined if no lockout
-    return undefined;
+
+    setIsLocked(false);
+    setLockoutTime(0);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -97,7 +111,11 @@ export function LoginForm({ onLoginSuccess, onSwitchToSignup }: LoginFormProps):
       const response = await signIn(formData.email, formData.password);
       
       if (response.success && response.user) {
-        onLoginSuccess(response.user);
+        onLoginSuccess({
+          user: response.user,
+          token: response.token,
+          tokenExpiry: response.tokenExpiry
+        });
       } else {
         setGeneralError(response.error || 'Login failed. Please try again.');
         

@@ -63,8 +63,41 @@ export interface LoginResponse {
   success: boolean;
   user?: User;
   token?: string;
+  tokenExpiry?: number;
   error?: string;
   details?: FormErrors;
+}
+
+export interface AuthStatusUser {
+  id: string;
+  email: string;
+  answering_mode_selected: string;
+  credits_available: number;
+}
+
+export interface AuthStatusBusinessProfile {
+  business_name: string;
+  business_main_category: string;
+  response_tone: string;
+  language: string;
+  greetings: string;
+  signatures: string;
+}
+
+export interface AuthStatusPrompt {
+  id: string;
+  content: string;
+  rating: number;
+  category?: string;
+}
+
+export interface AuthStatusResponse {
+  isAuthenticated: boolean;
+  error?: string;
+  user?: AuthStatusUser;
+  businessProfile?: AuthStatusBusinessProfile;
+  prompts?: AuthStatusPrompt[];
+  warning?: string;
 }
 
 // Extension state
@@ -78,10 +111,75 @@ export interface ExtensionState {
 }
 
 // Chrome message types for communication between components
-export interface ChromeMessage {
-  type: 'EXTRACT_REVIEW' | 'GENERATE_RESPONSE' | 'INSERT_RESPONSE' | 'AUTH_STATUS' | 'ERROR' | 'LOGIN_REQUEST' | 'LOGOUT_REQUEST';
-  payload?: any;
+export type ChromeMessageType =
+  | 'EXTRACT_REVIEW'
+  | 'GENERATE_RESPONSE'
+  | 'GENERATE_AI_RESPONSE'
+  | 'INSERT_RESPONSE'
+  | 'AUTH_STATUS'
+  | 'AI_RESPONSE_RESULT'
+  | 'PROGRESS_UPDATE'
+  | 'ERROR'
+  | 'LOGIN_REQUEST'
+  | 'LOGOUT_REQUEST';
+
+export interface ChromeMessage<TPayload = Record<string, unknown>> {
+  type: ChromeMessageType;
+  payload?: TPayload;
   error?: string;
+}
+
+export interface AuthSuccessPayload {
+  user: User;
+  token?: string;
+  tokenExpiry?: number;
+}
+
+export interface AIResponseRequestPayload {
+  reviewData: ReviewData;
+}
+
+export interface AIResponseRequestMessage extends ChromeMessage<AIResponseRequestPayload> {
+  type: 'GENERATE_AI_RESPONSE';
+  data: AIResponseRequestPayload;
+}
+
+export interface AIResponseSuccessPayload {
+  success: true;
+  aiResponse: string;
+  requestId: string;
+  confidence?: number;
+  processingTime?: number;
+  tokensUsed?: number;
+  modelUsed?: string;
+  creditsUsed?: number;
+  creditsRemaining?: number;
+  type?: string;
+}
+
+export type AIResponseErrorType =
+  | 'INSUFFICIENT_CREDITS'
+  | 'VALIDATION_ERROR'
+  | 'AUTH_FAILED'
+  | 'SERVER_ERROR';
+
+export interface AIResponseErrorPayload {
+  success: false;
+  error: string;
+  errorCode?: string;
+  errorType?: AIResponseErrorType;
+  creditsAvailable?: number;
+  creditsRequired?: number;
+  suggestion?: string;
+  type?: string;
+}
+
+export type AIResponsePayload = AIResponseSuccessPayload | AIResponseErrorPayload;
+
+export interface AIResponseResultMessage {
+  type: 'AI_RESPONSE_RESULT';
+  data: AIResponsePayload;
+  timestamp: number;
 }
 
 // DOM element selectors for Google My Business pages
@@ -106,7 +204,7 @@ export interface APIConfig {
 export interface ExtensionError {
   code: string;
   message: string;
-  details?: any;
+  details?: unknown;
   timestamp: number;
 }
 
@@ -304,7 +402,22 @@ export interface PromptsResponse {
 export interface APIError {
   code?: string;
   message: string;
-  details?: any;
+  details?: unknown;
+}
+
+export interface DirectAIGenerateResponse {
+  success: boolean;
+  generated_response: string;
+  confidence_score: number;
+  processing_time_ms: number;
+  tokens_used: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  model_used: string;
+  credits_used: number;
+  credits_remaining: number;
+  request_id?: string;
+  error?: string;
 }
 
 

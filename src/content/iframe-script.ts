@@ -769,8 +769,7 @@
       chrome.runtime.sendMessage({
         type: 'GENERATE_AI_RESPONSE',
         data: {
-          reviewData: reviewData,
-          mode: getSelectedMode() // We'll implement this to get mode from popup or default
+          reviewData: reviewData
         }
       }, (response) => {
         console.log('📨 Received response from background:', response);
