@@ -653,12 +653,6 @@
     }
   }
 
-  function getSelectedMode(): 'simple' | 'pro' {
-    // For now, default to simple mode
-    // TODO: Get this from popup settings or user preference
-    return 'simple';
-  }
-
   function showLoadingState(replyElement: HTMLElement) {
     // Disable the button and show loading state
     const button = document.querySelector('.ai-review-button') as HTMLElement;
