@@ -1,33 +1,25 @@
-import {
-  GenerateResponseRequest,
-  GenerateResponseResponse,
-  GenerationStatus,
-  APIConfig,
-  BusinessProfile,
-  CustomPromptsResponse,
-  CreateJobRequest,
-  CreateJobResponse,
-  JobStatusResponse,
-  JobsHistoryResponse,
-  CreateJobPayload,
-  CreateJobResponse as CreateJobResponseNew,
-  JobStatusResponse as JobStatusResponseGuide,
-  JobStatusResponse as JobStatusResponseNew,
-  BusinessProfileResponse,
-  PromptsResponse,
-  ReviewData,
-  APIError,
-  DirectAIGenerateResponse
-} from '../types';
-import { getCurrentToken, refreshToken } from './auth';
-
 // Default API configuration
 const DEFAULT_API_CONFIG: APIConfig = {
-  baseUrl: 'https://paddle-billing-subscription-starter-mauve.vercel.app/api/v1',
+  baseUrl: 'https://www.boltreply.io/api/v1',
   timeout: 30000,
   retryAttempts: 3,
   retryDelay: 1000
 };
+
+import {
+  GenerateResponseRequest,
+  GenerateResponseResponse,
+  APIConfig,
+  BusinessProfile,
+  CustomPromptsResponse,
+  BusinessProfileResponse,
+  PromptsResponse,
+  ReviewData,
+  APIError,
+  DirectAIGenerateResponse,
+  AnsweringModeResponse
+} from '../types';
+import { getCurrentToken, refreshToken } from './auth';
 
 function extractErrorMessage(error: unknown): string | undefined {
   if (error instanceof Error) {
@@ -166,18 +158,10 @@ export async function generateResponse(
       review_rating: request.reviewData.review_rating
     };
 
-    console.log('🚀 Sending direct AI generation request:', {
-      reviewer_name: apiRequest.reviewer_name,
-      review_text_length: apiRequest.review_text?.length,
-      has_rating: !!apiRequest.review_rating
-    });
-
     const response = await makeAuthenticatedRequest<DirectAIGenerateResponse>('/ai/generate', {
       method: 'POST',
       body: JSON.stringify(apiRequest)
     }, config);
-
-    console.log('✅ AI generation completed successfully');
 
     return {
       success: true,
@@ -197,30 +181,6 @@ export async function generateResponse(
       status: 'failed'
     };
   }
-}
-
-/**
- * Check the status of a response generation request (deprecated - no longer needed with direct API)
- */
-export async function checkGenerationStatus(
-  requestId: string,
-  config: APIConfig = DEFAULT_API_CONFIG
-): Promise<GenerationStatus> {
-  console.warn('checkGenerationStatus is deprecated - using direct API, no polling needed');
-  throw new Error('This function is deprecated. Use generateResponse() for direct API calls.');
-}
-
-/**
- * Poll for generation status (deprecated - no longer needed with direct API)
- */
-export async function pollGenerationStatus(
-  requestId: string,
-  onStatusUpdate: (status: GenerationStatus) => void,
-  config: APIConfig = DEFAULT_API_CONFIG,
-  pollInterval: number = 2000
-): Promise<string> {
-  console.warn('pollGenerationStatus is deprecated - using direct API, no polling needed');
-  throw new Error('This function is deprecated. Use generateResponse() for direct API calls.');
 }
 
 /**
@@ -361,40 +321,6 @@ export async function getCustomPrompts(
 }
 
 /**
- * Create a new AI generation job (deprecated - use generateAIResponse instead)
- */
-export async function createJob(
-  request: CreateJobRequest,
-  config: APIConfig = DEFAULT_API_CONFIG
-): Promise<CreateJobResponse> {
-  console.warn('createJob is deprecated - using direct API, no job creation needed');
-  throw new Error('This function is deprecated. Use generateAIResponse() for direct API calls.');
-}
-
-/**
- * Get job status and results (deprecated - no longer needed with direct API)
- */
-export async function getJobStatus(
-  jobId: string,
-  config: APIConfig = DEFAULT_API_CONFIG
-): Promise<JobStatusResponseGuide> {
-  console.warn('getJobStatus is deprecated - using direct API, no job status checking needed');
-  throw new Error('This function is deprecated. Use generateAIResponse() for direct API calls.');
-}
-
-/**
- * Get user's job history (deprecated - no longer needed with direct API)
- */
-export async function getJobsHistory(
-  page: number = 1,
-  pageSize: number = 20,
-  config: APIConfig = DEFAULT_API_CONFIG
-): Promise<JobsHistoryResponse> {
-  console.warn('getJobsHistory is deprecated - using direct API, no job history tracking needed');
-  throw new Error('This function is deprecated. Job history is no longer available with the direct API.');
-}
-
-/**
  * Update business profile
  */
 export async function updateBusinessProfile(
@@ -428,7 +354,6 @@ export async function generateAIResponse(
   // Allow empty reviews with our placeholder text
   if (reviewData.review_text.trim().length === 0) {
     reviewData.review_text = "[Review with no text content]";
-    console.log('🔄 API: Empty review text replaced with placeholder');
   }
 
   const payload = {
@@ -436,12 +361,6 @@ export async function generateAIResponse(
     reviewer_name: reviewData.reviewer_name,
     review_rating: reviewData.review_rating
   };
-
-  console.log('🚀 Generating AI response directly:', {
-    reviewerName: reviewData.reviewer_name,
-    reviewTextLength: reviewData.review_text.length,
-    isEmptyReview: reviewData.review_text === "[Review with no text content]"
-  });
 
   return makeRequestWithRetry<DirectAIGenerateResponse>(async () => {
     return makeAuthenticatedRequest<DirectAIGenerateResponse>('/ai/generate', {
@@ -452,24 +371,11 @@ export async function generateAIResponse(
 }
 
 /**
- * Poll job status (deprecated - no longer needed with direct API)
- */
-export async function pollJobStatus(
-  jobId: string,
-  config: APIConfig = DEFAULT_API_CONFIG,
-  onProgress?: (status: string, progress?: number) => void
-): Promise<never> {
-  console.warn('pollJobStatus is deprecated - using direct API, no polling needed');
-  throw new Error('This function is deprecated. Use generateAIResponse() for direct API calls.');
-}
-
-/**
  * Get business profile according to the integration guide
  */
 export async function getBusinessProfileGuide(
   config: APIConfig = DEFAULT_API_CONFIG
 ): Promise<BusinessProfileResponse> {
-  console.log('Fetching business profile from API');
   return makeRequestWithRetry(async () => {
     return makeAuthenticatedRequest<BusinessProfileResponse>('/me/business-profile', {
       method: 'GET'
@@ -483,7 +389,6 @@ export async function getBusinessProfileGuide(
 export async function getUserPrompts(
   config: APIConfig = DEFAULT_API_CONFIG
 ): Promise<PromptsResponse> {
-  console.log('Fetching user prompts from API');
   return makeRequestWithRetry(async () => {
     return makeAuthenticatedRequest<PromptsResponse>('/me/prompts', {
       method: 'GET'
@@ -550,8 +455,6 @@ export function handleAPIErrorGuide(error: unknown): APIError {
  */
 export function extractReviewDataFromSelectors(): ReviewData | null {
   try {
-    console.log('🔍 Extracting review data using provided selectors');
-
     // Extract reviewer name using the provided selector
     const reviewerNameElement = document.querySelector('#AH1dze > div > div > main > div > div > c-wiz > div > div > article > div.noyJyc > div > div > div.N0c6q.JhRJje') as HTMLElement;
     const reviewer_name = reviewerNameElement?.textContent?.trim();
@@ -574,7 +477,6 @@ export function extractReviewDataFromSelectors(): ReviewData | null {
 
     // Validate that we have the minimum required data
     if (!review_text || review_text.length === 0) {
-      console.warn('⚠️ No review text found');
       return null;
     }
 
@@ -586,17 +488,23 @@ export function extractReviewDataFromSelectors(): ReviewData | null {
       source_platform: 'Google'
     };
 
-    console.log('✅ Successfully extracted review data:', {
-      hasReviewer: !!reviewer_name,
-      rating: review_rating,
-      textLength: review_text.length,
-      url: reviewData.website_url
-    });
-
     return reviewData;
 
   } catch (error) {
     console.error('❌ Error extracting review data:', error);
     return null;
   }
+}
+
+/**
+ * Fetch answering mode from API
+ */
+export async function getAnsweringMode(
+  config: APIConfig = DEFAULT_API_CONFIG
+): Promise<AnsweringModeResponse> {
+  return makeRequestWithRetry(async () => {
+    return makeAuthenticatedRequest<AnsweringModeResponse>('/me/answering-mode', {
+      method: 'GET'
+    }, config);
+  }, config);
 }

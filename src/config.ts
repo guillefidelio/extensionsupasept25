@@ -15,7 +15,7 @@ export const CONFIG = {
   SUPABASE_ANON_KEY: getConfigValue('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhaWxveWNpcWdvcHlzZm93dHNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYyNTYwNDgsImV4cCI6MjA3MTgzMjA0OH0.pZkFqzyH06P5nxlkHAyM5w4Nf93u0hv0usXfU2Ckw2o'),
   
   // API configuration
-  API_BASE_URL: getConfigValue('API_BASE_URL', 'http://localhost:3000/api/v1'),
+  API_BASE_URL: getConfigValue('API_BASE_URL', 'https://www.boltreply.io/api/v1'),
   
   // Extension configuration
   EXTENSION_NAME: 'AI Review Replier',

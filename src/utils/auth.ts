@@ -223,6 +223,62 @@ function validateLoginForm(data: LoginFormData): FormErrors {
 }
 
 /**
+ * Fetch extended user profile from API
+ */
+async function fetchUserProfile(token: string): Promise<Partial<User>> {
+  try {
+    // Fetch basic user profile (credits)
+    const userResponse = await fetch(`${CONFIG.API_BASE_URL}/me`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    let extendedData: Partial<User> = {};
+
+    if (userResponse.ok) {
+      const userData = await userResponse.json();
+      if (userData.success && userData.user) {
+        extendedData = {
+          ...extendedData,
+          credits_available: userData.user.credits_available,
+          credits_total: userData.user.credits_total
+        };
+      }
+    } else {
+      console.warn('Failed to fetch user profile:', userResponse.status);
+    }
+
+    // Fetch answering mode
+    const modeResponse = await fetch(`${CONFIG.API_BASE_URL}/me/answering-mode`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (modeResponse.ok) {
+      const modeData = await modeResponse.json();
+      if (modeData.success) {
+        extendedData = {
+          ...extendedData,
+          answering_mode: modeData.answering_mode
+        };
+      }
+    } else {
+       console.warn('Failed to fetch answering mode:', modeResponse.status);
+    }
+
+    return extendedData;
+
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    return {};
+  }
+}
+
+/**
  * Sign in with email and password
  */
 export async function signIn(email: string, password: string): Promise<LoginResponse> {
@@ -285,18 +341,22 @@ export async function signIn(email: string, password: string): Promise<LoginResp
         updated_at: data.user.updated_at
       };
 
+      // Fetch extended profile data
+      const extendedProfile = await fetchUserProfile(data.session.access_token);
+      const fullUser = { ...user, ...extendedProfile };
+
       const tokenExpiry = resolveSessionExpiry(data.session);
 
       // Store token and user data
       await storeToken(data.session.access_token, tokenExpiry);
-      await storeUserData(user);
+      await storeUserData(fullUser);
       
       // Reset failed login attempts
       await resetLoginAttempts();
 
       return {
         success: true,
-        user,
+        user: fullUser,
         token: data.session.access_token,
         tokenExpiry
       };
@@ -367,15 +427,19 @@ export async function signUp(email: string, password: string, name?: string): Pr
         updated_at: data.user.updated_at
       };
 
+      // Fetch extended profile data
+      const extendedProfile = await fetchUserProfile(data.session.access_token);
+      const fullUser = { ...user, ...extendedProfile };
+
       const tokenExpiry = resolveSessionExpiry(data.session);
 
       // Store token and user data
       await storeToken(data.session.access_token, tokenExpiry);
-      await storeUserData(user);
+      await storeUserData(fullUser);
 
       return {
         success: true,
-        user,
+        user: fullUser,
         token: data.session.access_token,
         tokenExpiry
       };
@@ -442,9 +506,18 @@ export async function getAuthState(): Promise<AuthState> {
       return { isAuthenticated: false };
     }
 
+    // Refresh extended profile data
+    const extendedProfile = await fetchUserProfile(token);
+    const updatedUser = { ...userData, ...extendedProfile };
+
+    // Update storage if we got new data
+    if (Object.keys(extendedProfile).length > 0) {
+      await storeUserData(updatedUser);
+    }
+
     return {
       isAuthenticated: true,
-      user: userData,
+      user: updatedUser,
       token,
       tokenExpiry
     };

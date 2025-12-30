@@ -1,10 +1,8 @@
- // Background service worker for Chrome Extension
+// Background service worker for Chrome Extension
 // This handles authentication and API communication according to responder.md
 
-console.log('AI Review Responder Background Service Worker loaded');
-
 // API Configuration - Update these with your actual API endpoints
-const API_BASE_URL = 'https://paddle-billing-subscription-starter-mauve.vercel.app/api/v1'; // Production
+const API_BASE_URL = 'https://www.boltreply.io/api/v1'; // Production
 
 // Constants for API endpoints - using your actual API endpoints
 const API_ENDPOINTS = {
@@ -66,13 +64,11 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 // Handle extension installation
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('AI Review Responder Extension installed');
+  // Extension installed
 });
 
 // Handle messages from content scripts and popup
 chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendResponse) => {
-  console.log('Background message received:', message);
-
   switch (message.type) {
     case 'GENERATE_AI_RESPONSE': {
       if (!isAIResponseRequestMessage(message)) {
@@ -103,7 +99,6 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
       return true;
 
     default:
-      console.log('Unknown message type:', message.type);
       sendResponse({ success: false, error: 'Unknown message type' });
       return false;
   }
@@ -117,33 +112,15 @@ async function handleAIGenerationRequest(
   sender: chrome.runtime.MessageSender
 ): Promise<AIResponsePayload> {
   try {
-    console.log('Processing AI generation request:', message);
-
     // Validate message data
     const { reviewData } = message.data;
 
-    console.log('Processing request:', {
-      reviewer: reviewData.reviewer_name,
-      rating: reviewData.review_rating,
-      reviewTextLength: reviewData.review_text?.length
-    });
-
     // Step 1: Generate AI response directly using new API
-    console.log('🚀 Generating AI response directly...');
     const result = await generateAIResponse(reviewData, API_CONFIG) as DirectAIGenerateResponse;
 
     if (!result.success) {
       throw new Error(result.error || 'AI generation failed');
     }
-
-    console.log('✅ AI response generated successfully:', {
-      responseLength: result.generated_response?.length || 0,
-      confidence: result.confidence_score,
-      processingTime: result.processing_time_ms,
-      tokensUsed: result.tokens_used,
-      creditsUsed: result.credits_used,
-      creditsRemaining: result.credits_remaining
-    });
 
     // Step 2: Send final result back to content script
     const successPayload: AIResponseSuccessPayload = {
@@ -233,8 +210,6 @@ async function getStoredAuthToken(): Promise<string | null> {
   }
 }
 
-
-
 /**
  * Send response back to content script
  */
@@ -251,7 +226,6 @@ async function sendResponseToContentScript(
         timestamp: Date.now()
       };
 
-      console.log('📤 Sending message to content script:', message);
       await chrome.tabs.sendMessage(sender.tab.id, message);
     }
   } catch (error) {
@@ -267,11 +241,8 @@ async function checkAuthStatus(): Promise<AuthStatusResponse> {
     const token = await getStoredAuthToken();
 
     if (!token) {
-      console.log('❌ No authentication token found');
       return { isAuthenticated: false };
     }
-
-    console.log('🔐 Token found, validating with API...');
 
     // Try to fetch business profile and prompts using new API functions
     try {
@@ -279,8 +250,6 @@ async function checkAuthStatus(): Promise<AuthStatusResponse> {
         getBusinessProfileGuide(API_CONFIG),
         getUserPrompts(API_CONFIG)
       ]);
-
-      console.log('✅ API validation successful');
 
       // Format data to match extension's expected structure
       const businessProfile = businessProfileResponse.business_profile;
@@ -311,13 +280,11 @@ async function checkAuthStatus(): Promise<AuthStatusResponse> {
 
       if (errorMessage.includes('401') || errorMessage.includes('Authentication')) {
         // Token is invalid, clear it
-        console.log('🗑️ Clearing invalid token');
         await chrome.storage.local.remove(['auth_token']);
         return { isAuthenticated: false, error: 'Token expired' };
       }
 
       // For other errors, assume token is still valid but API is down
-      console.log('⚠️ API error but keeping token (may be temporary):', errorMessage);
       return {
         isAuthenticated: true, // Assume still authenticated
         user: {

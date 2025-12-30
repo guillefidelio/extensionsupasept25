@@ -96,15 +96,15 @@ export function SignupForm({ onSignupSuccess, onSwitchToLogin }: SignupFormProps
   };
 
   return (
-    <div className="signup-form-container">
-      <div className="signup-header">
-        <h2>Create Account</h2>
-        <p>Sign up to get started with AI Review Replier</p>
+    <div className="glass-card">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl font-semibold text-foreground mb-2">Create Account</h2>
+        <p className="text-sm text-muted-foreground">Sign up to get started with AI Review Replier</p>
       </div>
       
-      <form onSubmit={handleSubmit} className="signup-form">
-        <div className="form-group">
-          <label htmlFor="name" className="form-label">
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="space-y-1.5">
+          <label htmlFor="name" className="text-sm font-medium text-foreground">
             Full Name
           </label>
           <input
@@ -113,18 +113,18 @@ export function SignupForm({ onSignupSuccess, onSwitchToLogin }: SignupFormProps
             name="name"
             value={formData.name}
             onChange={handleInputChange}
-            className={`form-input ${errors.name ? 'error' : ''}`}
+            className={`w-full h-10 px-3 py-2 bg-background border rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-colors ${errors.name ? 'border-destructive' : 'border-input'}`}
             placeholder="Enter your full name"
             disabled={isLoading}
             autoComplete="name"
           />
           {errors.name && (
-            <span className="error-message">{errors.name}</span>
+            <span className="text-xs text-destructive mt-1">{errors.name}</span>
           )}
         </div>
         
-        <div className="form-group">
-          <label htmlFor="email" className="form-label">
+        <div className="space-y-1.5">
+          <label htmlFor="email" className="text-sm font-medium text-foreground">
             Email Address
           </label>
           <input
@@ -133,18 +133,18 @@ export function SignupForm({ onSignupSuccess, onSwitchToLogin }: SignupFormProps
             name="email"
             value={formData.email}
             onChange={handleInputChange}
-            className={`form-input ${errors.email ? 'error' : ''}`}
+            className={`w-full h-10 px-3 py-2 bg-background border rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-colors ${errors.email ? 'border-destructive' : 'border-input'}`}
             placeholder="Enter your email"
             disabled={isLoading}
             autoComplete="email"
           />
           {errors.email && (
-            <span className="error-message">{errors.email}</span>
+            <span className="text-xs text-destructive mt-1">{errors.email}</span>
           )}
         </div>
         
-        <div className="form-group">
-          <label htmlFor="password" className="form-label">
+        <div className="space-y-1.5">
+          <label htmlFor="password" className="text-sm font-medium text-foreground">
             Password
           </label>
           <input
@@ -153,18 +153,18 @@ export function SignupForm({ onSignupSuccess, onSwitchToLogin }: SignupFormProps
             name="password"
             value={formData.password}
             onChange={handleInputChange}
-            className={`form-input ${errors.password ? 'error' : ''}`}
+            className={`w-full h-10 px-3 py-2 bg-background border rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-colors ${errors.password ? 'border-destructive' : 'border-input'}`}
             placeholder="Create a password"
             disabled={isLoading}
             autoComplete="new-password"
           />
           {errors.password && (
-            <span className="error-message">{errors.password}</span>
+            <span className="text-xs text-destructive mt-1">{errors.password}</span>
           )}
         </div>
         
-        <div className="form-group">
-          <label htmlFor="confirmPassword" className="form-label">
+        <div className="space-y-1.5">
+          <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
             Confirm Password
           </label>
           <input
@@ -173,31 +173,31 @@ export function SignupForm({ onSignupSuccess, onSwitchToLogin }: SignupFormProps
             name="confirmPassword"
             value={formData.confirmPassword}
             onChange={handleInputChange}
-            className={`form-input ${errors.confirmPassword ? 'error' : ''}`}
+            className={`w-full h-10 px-3 py-2 bg-background border rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-colors ${errors.confirmPassword ? 'border-destructive' : 'border-input'}`}
             placeholder="Confirm your password"
             disabled={isLoading}
             autoComplete="new-password"
           />
           {errors.confirmPassword && (
-            <span className="error-message">{errors.confirmPassword}</span>
+            <span className="text-xs text-destructive mt-1">{errors.confirmPassword}</span>
           )}
         </div>
         
         {generalError && (
-          <div className="general-error">
-            <span className="error-icon">⚠️</span>
+          <div className="flex items-center p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-sm">
+            <span className="mr-2">⚠️</span>
             {generalError}
           </div>
         )}
         
         <button
           type="submit"
-          className="signup-button"
+          className="w-full h-11 px-5 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           disabled={isLoading}
         >
           {isLoading ? (
             <>
-              <span className="loading-spinner"></span>
+              <div className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin"></div>
               Creating Account...
             </>
           ) : (
@@ -206,12 +206,12 @@ export function SignupForm({ onSignupSuccess, onSwitchToLogin }: SignupFormProps
         </button>
       </form>
       
-      <div className="signup-footer">
-        <p>
+      <div className="text-center mt-6 pt-6 border-t border-border">
+        <p className="text-sm text-muted-foreground">
           Already have an account?{' '}
           <button
             type="button"
-            className="link-button"
+            className="text-primary underline hover:text-primary/80 font-medium transition-colors bg-transparent border-none cursor-pointer"
             onClick={onSwitchToLogin}
             disabled={isLoading}
           >

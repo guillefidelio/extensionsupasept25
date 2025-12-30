@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "AI Review Replier",
+  "name": "Bolt Reply AI",
   "version": "2.0.0",
   "description": "AI-powered Chrome extension for generating Google My Business review replies",
   "permissions": [
@@ -11,7 +11,7 @@
     ],
   "host_permissions": [
     "https://www.google.com/*",
-    "https://paddle-billing-subscription-starter-mauve.vercel.app/*"
+    "https://www.boltreply.io/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js",
@@ -37,7 +37,7 @@
   ],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "AI Review Replier",
+    "default_title": "Bolt Reply AI",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",

@@ -40,6 +40,9 @@ export interface User {
   name?: string;
   created_at?: string;
   updated_at?: string;
+  credits_available?: number;
+  credits_total?: number;
+  answering_mode?: 'simple' | 'pro';
 }
 
 // Authentication state
@@ -420,4 +423,8 @@ export interface DirectAIGenerateResponse {
   error?: string;
 }
 
-
+export interface AnsweringModeResponse {
+  success: boolean;
+  answering_mode: 'simple' | 'pro';
+  user_id: string;
+}

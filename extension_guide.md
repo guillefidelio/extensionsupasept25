@@ -1,7 +1,7 @@
 # Chrome Extension Technical Guide
 
 ## Overview
-This document serves as the single source of truth for building a Chrome Extension that integrates with our ReviewRepl.ai backend. The extension will handle user authentication, data synchronization, and AI job management.
+This document serves as the single source of truth for building a Chrome Extension that integrates with our BoltReply.io backend. The extension will handle user authentication, data synchronization, and AI job management.
 
 ## 1. Authentication Flow
 
@@ -430,4 +430,4 @@ interface ExtensionStorage {
 
 ---
 
-This guide provides the foundation for building a robust Chrome Extension that seamlessly integrates with your ReviewRepl.ai backend. Follow these patterns to ensure consistency, security, and maintainability.
+This guide provides the foundation for building a robust Chrome Extension that seamlessly integrates with your BoltReply.io backend. Follow these patterns to ensure consistency, security, and maintainability.

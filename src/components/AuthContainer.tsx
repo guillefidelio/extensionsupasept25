@@ -33,7 +33,7 @@ export function AuthContainer({ onAuthSuccess }: AuthContainerProps): JSX.Elemen
   };
 
   return (
-    <div className="auth-container">
+    <div className="h-full bg-muted/50 p-6 overflow-y-auto flex flex-col justify-center">
       {authMode === 'login' ? (
         <LoginForm
           onLoginSuccess={handleLoginSuccess}

@@ -1,7 +1,7 @@
 # Chrome Extension AI Responder Implementation Guide
 
 ## Overview
-This document provides precise instructions for implementing the "Respond with AI" functionality in your Chrome extension. The extension will integrate with the ReviewRepl.ai backend API to generate AI-powered responses to reviews.
+This document provides precise instructions for implementing the "Respond with AI" functionality in your Chrome extension. The extension will integrate with the BoltReply.io backend API to generate AI-powered responses to reviews.
 
 ## Base URL Configuration
 ```javascript
