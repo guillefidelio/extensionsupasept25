@@ -6,9 +6,8 @@
   "permissions": [
     "activeTab",
     "storage",
-    "identity",
     "scripting"
-    ],
+  ],
   "host_permissions": [
     "https://www.google.com/*",
     "https://www.boltreply.io/*"
@@ -54,7 +53,10 @@
   "web_accessible_resources": [
     {
       "resources": ["popup/*", "content/*"],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "https://www.google.com/*",
+        "https://business.google.com/*"
+      ]
     }
   ]
 }

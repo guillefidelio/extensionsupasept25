@@ -158,7 +158,12 @@ export function LoginForm({ onLoginSuccess, onSwitchToSignup }: LoginFormProps):
   return (
     <div className="glass-card">
       <div className="text-center mb-8">
-        <h2 className="text-2xl font-semibold text-foreground mb-2">Welcome Back</h2>
+        <img 
+          src="../icons/boltreplyainameicon.png" 
+          alt="BoltReply" 
+          className="h-20 mx-auto mb-4 object-contain"
+        />
+        <h2 className="text-2xl font-semibold text-foreground mb-2">Welcome to BoltReply</h2>
         <p className="text-sm text-muted-foreground">Sign in to your account to continue</p>
       </div>
       

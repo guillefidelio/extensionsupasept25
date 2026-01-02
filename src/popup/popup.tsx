@@ -64,43 +64,56 @@ function MainExtensionInterface(): JSX.Element {
       </div>
       
       <div className="glass-card flex-1 flex flex-col gap-6 overflow-y-auto">
-        <div>
-            <h2 className="text-xl font-semibold text-foreground mb-2">Bolt Reply AI</h2>
+        <div className="flex flex-col items-center text-center">
+            <img 
+              src="../icons/boltreplyainameicon.png" 
+              alt="Bolt Reply AI" 
+              className="h-16 mb-4 object-contain"
+            />
             <p className="text-sm text-muted-foreground">Welcome! Your extension is ready to help with review responses.</p>
         </div>
         
-        <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/20 rounded-md text-success-foreground">
-          <div className="h-2 w-2 rounded-full bg-success animate-pulse"></div>
-          <span className="text-sm font-medium text-success">Connected to BoltReply.io</span>
-        </div>
-
         {/* Credits Display */}
-        <div className="flex flex-col gap-1 p-3 bg-gradient-to-br from-background to-secondary border border-border rounded-lg">
-          <div className="flex items-center gap-2 text-primary">
-            <span className="text-lg">💎</span>
-            <span className="font-semibold text-sm">
+        <div 
+          className="flex items-center justify-between p-3 h-[72px] bg-gradient-to-br from-background to-secondary hover:from-gray-200 hover:to-gray-200 border border-border rounded-lg cursor-pointer transition-all duration-200"
+          onClick={handleSettingsClick}
+          title="Change or update subscription"
+        >
+          <div className="flex flex-col justify-center">
+            <span className="font-semibold text-sm text-primary">
               Credits: {user?.credits_available !== undefined ? user.credits_available : '...'} remaining
             </span>
+            <span className="text-xs text-muted-foreground italic">Change or update your subscription in the dashboard</span>
           </div>
-          <span className="text-xs text-muted-foreground italic pl-7">Each AI response costs 1 credit</span>
+          <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            width="16" 
+            height="16" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+            className="text-muted-foreground"
+          >
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            <polyline points="15 3 21 3 21 9" />
+            <line x1="10" y1="14" x2="21" y2="3" />
+          </svg>
         </div>
 
         {/* Answering Mode Display */}
         <div 
-          className="flex items-center justify-between p-3 bg-background/30 backdrop-blur-[12px] border border-border rounded-lg cursor-pointer hover:bg-background/50 transition-colors"
+          className="flex items-center justify-between p-3 h-[72px] bg-background/30 backdrop-blur-[12px] border border-border rounded-lg cursor-pointer hover:bg-gray-200 transition-all duration-200"
           onClick={handleModeClick}
           title="Click to change answering mode"
         >
-          <div className="flex items-center gap-2">
-            <span className="text-lg">
-              {user?.answering_mode === 'pro' ? '✨' : '⚡'}
+          <div className="flex flex-col justify-center">
+            <span className="text-sm font-semibold text-primary capitalize">
+              Active Answering Mode: {user?.answering_mode || 'Simple'}
             </span>
-            <div className="flex flex-col">
-              <span className="text-sm font-medium text-foreground capitalize">
-                {user?.answering_mode || 'Simple'} Mode
-              </span>
-              <span className="text-xs text-muted-foreground">Active Answering Mode</span>
-            </div>
+            <span className="text-xs text-muted-foreground italic">Change your answering mode from the dashboard</span>
           </div>
           <svg 
             xmlns="http://www.w3.org/2000/svg" 
