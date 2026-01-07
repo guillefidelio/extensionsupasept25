@@ -147,7 +147,7 @@ function MainExtensionInterface(): JSX.Element {
           <ol className="list-decimal pl-5 space-y-2 text-xs text-muted-foreground">
             <li>Navigate to your Google Business review page</li>
             <li>The extension will automatically detect reviews</li>
-            <li>Click "Generate AI Reply" in the unanswered individual review view</li>
+            <li>Click "Bolt Reply" in the unanswered individual review view</li>
             <li>Change your preferred answering mode in the Dashboard</li>
           </ol>
         </div>

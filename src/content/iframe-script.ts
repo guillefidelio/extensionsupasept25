@@ -475,7 +475,7 @@
 
   function createAIButton(textarea: HTMLElement): HTMLElement {
     const button = document.createElement('button');
-    button.textContent = '🤖 Generate AI Reply';
+    button.textContent = 'Bolt Reply';
     button.className = 'ai-review-button VfPpkd-LgbsSe VfPpkd-LgbsSe-OWXEXe-k8QpJ VfPpkd-LgbsSe-OWXEXe-dgl2Hf nCP5yc AjY5Oe DuMIQc LQeN7 FwaX8';
     button.setAttribute('data-textarea-id', textarea.id || 'textarea-' + Date.now());
 
@@ -493,6 +493,9 @@
       transition: background-color 0.2s;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
       backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      gap: 6px;
     `;
 
     // Add hover effects
@@ -506,12 +509,15 @@
       generateAIReply(textarea);
     });
 
-    // Add Google-like inner structure
+    // Lightning bolt SVG icon (flat, white)
+    const lightningIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white" style="flex-shrink: 0;"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>`;
+
+    // Add Google-like inner structure with lightning icon
     button.innerHTML = `
       <div class="VfPpkd-Jh9lGc"></div>
       <div class="VfPpkd-J1Ukfc-LhBDec"></div>
       <div class="VfPpkd-RLmnJb"></div>
-      <span jsname="V67aGc" class="VfPpkd-vQzf8d">🤖 Generate AI Reply</span>
+      <span jsname="V67aGc" class="VfPpkd-vQzf8d" style="display: flex; align-items: center; gap: 6px;">${lightningIcon} Bolt Reply</span>
     `;
 
     return button;
@@ -657,7 +663,8 @@
     // Disable the button and show loading state
     const button = document.querySelector('.ai-review-button') as HTMLElement;
     if (button) {
-      button.textContent = '🤖 Generating...';
+      const lightningIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white" style="flex-shrink: 0;"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>`;
+      button.innerHTML = `<span style="display: flex; align-items: center; gap: 6px;">${lightningIcon} Generating...</span>`;
       button.style.opacity = '0.6';
       button.style.pointerEvents = 'none';
     }
@@ -674,7 +681,8 @@
     // Re-enable the button
     const button = document.querySelector('.ai-review-button') as HTMLElement;
     if (button) {
-      button.textContent = '🤖 Generate AI Reply';
+      const lightningIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white" style="flex-shrink: 0;"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>`;
+      button.innerHTML = `<span style="display: flex; align-items: center; gap: 6px;">${lightningIcon} Bolt Reply</span>`;
       button.style.opacity = '1';
       button.style.pointerEvents = 'auto';
     }
@@ -877,7 +885,7 @@
           if (element && element.textContent && element.textContent.trim().length > 20) {
             const text = element.textContent.trim();
             // Make sure it's not our button text or other UI text
-            if (!text.includes('Generate AI Reply') && !text.includes('Omitir') && !text.includes('Reply')) {
+            if (!text.includes('Bolt Reply') && !text.includes('Omitir') && !text.includes('Reply')) {
               return text;
             }
           }
@@ -892,7 +900,7 @@
     for (const element of allTextElements) {
       if (element.textContent && element.textContent.trim().length > 50) {
         const text = element.textContent.trim();
-        if (!text.includes('Generate AI Reply') && !text.includes('Omitir')) {
+        if (!text.includes('Bolt Reply') && !text.includes('Omitir')) {
           return text;
         }
       }
