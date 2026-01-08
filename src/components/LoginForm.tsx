@@ -4,10 +4,9 @@ import { LoginFormData, FormErrors, AuthSuccessPayload } from '../types';
 
 interface LoginFormProps {
   onLoginSuccess: (authData: AuthSuccessPayload) => void;
-  onSwitchToSignup: () => void;
 }
 
-export function LoginForm({ onLoginSuccess, onSwitchToSignup }: LoginFormProps): JSX.Element {
+export function LoginForm({ onLoginSuccess }: LoginFormProps): JSX.Element {
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: ''
@@ -234,14 +233,14 @@ export function LoginForm({ onLoginSuccess, onSwitchToSignup }: LoginFormProps):
       <div className="text-center mt-6 pt-6 border-t border-border">
         <p className="text-sm text-muted-foreground">
           Don't have an account?{' '}
-          <button
-            type="button"
-            className="text-primary underline hover:text-primary/80 font-medium transition-colors bg-transparent border-none cursor-pointer"
-            onClick={onSwitchToSignup}
-            disabled={isLoading}
+          <a
+            href="https://www.boltreply.io/signup"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline hover:text-primary/80 font-medium transition-colors"
           >
             Sign up here
-          </button>
+          </a>
         </p>
       </div>
     </div>

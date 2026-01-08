@@ -481,21 +481,12 @@
 
     button.style.cssText = `
       margin: 0 8px 0 0;
-      padding: 8px 16px;
       background: hsl(217, 91%, 60%);
       color: white;
       border: none;
-      border-radius: 6px;
+      border-radius: 4px;
       cursor: pointer;
-      font-size: 14px;
-      font-family: 'Inter', 'Google Sans', Roboto, Arial, sans-serif;
-      font-weight: 500;
       transition: background-color 0.2s;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      backdrop-filter: blur(12px);
-      display: flex;
-      align-items: center;
-      gap: 6px;
     `;
 
     // Add hover effects
