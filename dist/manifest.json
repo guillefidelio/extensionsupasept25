@@ -6,12 +6,21 @@
   "permissions": [
     "activeTab",
     "storage",
-    "scripting"
+    "scripting",
+    "tabs"
   ],
   "host_permissions": [
     "https://www.google.com/*",
+    "https://boltreply.io/*",
     "https://www.boltreply.io/*"
   ],
+  "externally_connectable": {
+    "matches": [
+      "https://boltreply.io/*",
+      "https://www.boltreply.io/*",
+      "http://localhost:3000/*"
+    ]
+  },
   "background": {
     "service_worker": "background/service-worker.js",
     "type": "module"

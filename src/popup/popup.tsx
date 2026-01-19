@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { AuthProvider, useAuth } from '../components/AuthContext';
 import { AuthContainer } from '../components/AuthContainer';
-import { AuthSuccessPayload } from '../types';
+import { AuthSuccessPayload, AuthStateChangedMessage } from '../types';
 import '../styles/globals.css';
 import './popup.css';
 
@@ -168,8 +168,50 @@ function LoadingState(): JSX.Element {
 
 // Main popup component with authentication logic
 function PopupContent(): JSX.Element {
-  const { authState } = useAuth();
+  const { authState, login, updateAuthState } = useAuth();
   const { isAuthenticated, isLoading, error } = authState;
+
+  // Listen for auth state changes from background script (Google OAuth)
+  useEffect(() => {
+    const handleAuthStateChanged = (
+      message: AuthStateChangedMessage,
+      sender: chrome.runtime.MessageSender,
+      sendResponse: (response: { received: boolean }) => void
+    ) => {
+      if (message.type === 'AUTH_STATE_CHANGED') {
+        console.log('Popup: Received auth state change', message);
+        
+        if (message.isAuthenticated && message.user) {
+          // User logged in via Google OAuth
+          login({
+            user: message.user,
+            token: undefined, // Token is stored in background
+            tokenExpiry: undefined
+          });
+        } else {
+          // User logged out
+          updateAuthState({
+            isAuthenticated: false,
+            user: undefined,
+            token: undefined,
+            tokenExpiry: undefined,
+            isLoading: false
+          });
+        }
+        
+        sendResponse({ received: true });
+      }
+      return true; // Keep message channel open for async response
+    };
+
+    // Add listener
+    chrome.runtime.onMessage.addListener(handleAuthStateChanged);
+
+    // Cleanup listener on unmount
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleAuthStateChanged);
+    };
+  }, [login, updateAuthState]);
 
   if (isLoading) {
     return <LoadingState />;

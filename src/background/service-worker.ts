@@ -26,6 +26,16 @@ import {
   getBusinessProfileGuide,
   getUserPrompts
 } from '../utils/api';
+
+// Import Google OAuth functions
+import {
+  setupExternalAuthListener,
+  getValidAccessToken,
+  isGoogleAuthenticated,
+  openGoogleLoginPopup,
+  getUserProfile
+} from '../auth/google-auth';
+
 import type {
   AIResponseErrorPayload,
   AIResponsePayload,
@@ -62,9 +72,13 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
 }
 
+// Setup Google OAuth external message listener
+setupExternalAuthListener();
+console.log('BoltReply: Extension service worker loaded');
+
 // Handle extension installation
 chrome.runtime.onInstalled.addListener(() => {
-  // Extension installed
+  console.log('BoltReply: Extension installed/updated');
 });
 
 // Handle messages from content scripts and popup
@@ -97,6 +111,47 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
           });
         });
       return true;
+
+    // Google OAuth: Get authentication status
+    case 'GET_AUTH_STATUS':
+      isGoogleAuthenticated().then(async (authenticated) => {
+        const user = authenticated ? await getUserProfile() : null;
+        sendResponse({ 
+          isAuthenticated: authenticated,
+          user: user || undefined
+        });
+      }).catch((error: unknown) => {
+        sendResponse({ 
+          isAuthenticated: false, 
+          error: extractErrorMessage(error) 
+        });
+      });
+      return true;
+
+    // Google OAuth: Get valid access token
+    case 'GET_ACCESS_TOKEN':
+      getValidAccessToken().then((token) => {
+        sendResponse({ token });
+      }).catch((error: unknown) => {
+        sendResponse({ 
+          token: null, 
+          error: extractErrorMessage(error) 
+        });
+      });
+      return true;
+
+    // Google OAuth: Open login popup
+    case 'OPEN_GOOGLE_LOGIN':
+      try {
+        openGoogleLoginPopup();
+        sendResponse({ success: true });
+      } catch (error: unknown) {
+        sendResponse({ 
+          success: false, 
+          error: extractErrorMessage(error) ?? 'Failed to open login popup' 
+        });
+      }
+      return false;
 
     default:
       sendResponse({ success: false, error: 'Unknown message type' });

@@ -17,6 +17,15 @@ export const CONFIG = {
   // API configuration
   API_BASE_URL: getConfigValue('API_BASE_URL', 'https://www.boltreply.io/api/v1'),
   
+  // Website configuration for Google OAuth
+  WEBSITE_URL: 'https://www.boltreply.io',
+  EXTENSION_CALLBACK_PATH: '/auth/extension-callback',
+  ALLOWED_ORIGINS: [
+    'https://boltreply.io',
+    'https://www.boltreply.io',
+    'http://localhost:3000'
+  ],
+  
   // Extension configuration
   EXTENSION_NAME: 'AI Review Replier',
   VERSION: '1.0.0',
@@ -24,6 +33,7 @@ export const CONFIG = {
   // Storage keys
   STORAGE_KEYS: {
     AUTH_TOKEN: 'auth_token',
+    REFRESH_TOKEN: 'refresh_token',
     USER_ID: 'user_id',
     TOKEN_EXPIRES_AT: 'token_expires_at',
     USER_DATA: 'user_data'

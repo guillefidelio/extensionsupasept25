@@ -227,51 +227,26 @@ function validateLoginForm(data: LoginFormData): FormErrors {
  */
 async function fetchUserProfile(token: string): Promise<Partial<User>> {
   try {
-    // Fetch basic user profile (credits)
-    const userResponse = await fetch(`${CONFIG.API_BASE_URL}/me`, {
+    const response = await fetch(`${CONFIG.API_BASE_URL}/me`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     });
 
-    let extendedData: Partial<User> = {};
-
-    if (userResponse.ok) {
-      const userData = await userResponse.json();
-      if (userData.success && userData.user) {
-        extendedData = {
-          ...extendedData,
-          credits_available: userData.user.credits_available,
-          credits_total: userData.user.credits_total
-        };
-      }
-    } else {
-      console.warn('Failed to fetch user profile:', userResponse.status);
+    if (!response.ok) {
+      console.warn('Failed to fetch user profile:', response.status);
+      return {};
     }
 
-    // Fetch answering mode
-    const modeResponse = await fetch(`${CONFIG.API_BASE_URL}/me/answering-mode`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (modeResponse.ok) {
-      const modeData = await modeResponse.json();
-      if (modeData.success) {
-        extendedData = {
-          ...extendedData,
-          answering_mode: modeData.answering_mode
-        };
-      }
-    } else {
-       console.warn('Failed to fetch answering mode:', modeResponse.status);
+    const data = await response.json();
+    if (data.success && data.user) {
+      return {
+        credits_available: data.user.credits_available,
+        credits_total: data.user.credits_total
+      };
     }
-
-    return extendedData;
-
+    return {};
   } catch (error) {
     console.error('Error fetching user profile:', error);
     return {};

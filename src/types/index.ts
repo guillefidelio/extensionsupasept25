@@ -124,7 +124,33 @@ export type ChromeMessageType =
   | 'PROGRESS_UPDATE'
   | 'ERROR'
   | 'LOGIN_REQUEST'
-  | 'LOGOUT_REQUEST';
+  | 'LOGOUT_REQUEST'
+  | 'AUTH_STATE_CHANGED'
+  | 'GET_AUTH_STATUS'
+  | 'GET_ACCESS_TOKEN'
+  | 'OPEN_GOOGLE_LOGIN';
+
+// Google OAuth authentication tokens received from website
+export interface AuthTokens {
+  access_token: string;
+  refresh_token: string;
+  expires_at: number; // Unix timestamp in milliseconds
+}
+
+// External message from website for Google OAuth
+export interface GoogleAuthMessage {
+  type: 'AUTH_TOKENS';
+  access_token: string;
+  refresh_token: string;
+  expires_in: number; // Seconds until expiry
+}
+
+// Auth state change message sent from background to popup
+export interface AuthStateChangedMessage {
+  type: 'AUTH_STATE_CHANGED';
+  isAuthenticated: boolean;
+  user?: User;
+}
 
 export interface ChromeMessage<TPayload = Record<string, unknown>> {
   type: ChromeMessageType;
