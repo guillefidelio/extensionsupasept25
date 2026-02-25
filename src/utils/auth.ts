@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient, type Session } from '@supabase/supabase-js';
 import { AuthState, User, LoginFormData, LoginResponse, FormErrors, LoginAttempts, STORAGE_KEYS } from '../types';
 import { CONFIG } from '../config';
+import { getAuthTokens, getValidAccessToken, getUserProfile as getGoogleUserProfile, refreshAccessToken as refreshGoogleToken, clearAuthTokens } from '../auth/google-auth';
 
 let supabaseClient: SupabaseClient | null = null;
 
@@ -435,16 +436,34 @@ export async function signUp(email: string, password: string, name?: string): Pr
 
 /**
  * Sign out user
+ * Clears both Google OAuth and email/password sessions
  */
 export async function signOut(): Promise<void> {
   try {
-    const supabase = initializeSupabase();
-    await supabase.auth.signOut();
+    // Clear Supabase session
+    try {
+      const supabase = initializeSupabase();
+      await supabase.auth.signOut();
+    } catch (error) {
+      // Ignore if Supabase session doesn't exist
+      console.log('No Supabase session to clear');
+    }
     
-    // Remove stored data
+    // Clear Google OAuth tokens
+    try {
+      await clearAuthTokens();
+    } catch (error) {
+      // Ignore if Google OAuth module fails
+      console.log('No Google OAuth tokens to clear');
+    }
+    
+    // Remove all stored data
     await removeStoredToken();
-    await chrome.storage.local.remove(CONFIG.STORAGE_KEYS.USER_DATA);
-    await chrome.storage.local.remove('login_attempts');
+    await chrome.storage.local.remove([
+      CONFIG.STORAGE_KEYS.USER_DATA,
+      CONFIG.STORAGE_KEYS.REFRESH_TOKEN,
+      'login_attempts'
+    ]);
   } catch (error) {
     console.error('Sign out error:', error);
     throw error;
@@ -452,50 +471,184 @@ export async function signOut(): Promise<void> {
 }
 
 /**
+ * Detect which authentication method is being used
+ * Returns 'google' if Google OAuth tokens exist, 'email' if Supabase session exists
+ */
+async function detectAuthMethod(): Promise<'google' | 'email' | null> {
+  // Check for Google OAuth tokens first
+  const googleTokens = await getAuthTokens();
+  if (googleTokens?.access_token && googleTokens?.refresh_token) {
+    return 'google';
+  }
+
+  // Check for Supabase session (email/password)
+  try {
+    const supabase = initializeSupabase();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      return 'email';
+    }
+  } catch (error) {
+    // Supabase session not available
+  }
+
+  return null;
+}
+
+/**
  * Get current authentication state
+ * Supports both Google OAuth and email/password authentication
  */
 export async function getAuthState(): Promise<AuthState> {
   try {
-    const token = await getStoredToken();
-    const userData = await getStoredUserData();
-    const tokenExpiry = await getStoredTokenExpiry();
+    // Detect which auth method is being used
+    const authMethod = await detectAuthMethod();
 
-    if (!token || !userData) {
+    if (!authMethod) {
       return { isAuthenticated: false };
     }
 
-    if (tokenExpiry && tokenExpiry <= Date.now()) {
-      await removeStoredToken();
-      await chrome.storage.local.remove(CONFIG.STORAGE_KEYS.USER_DATA);
-      return { isAuthenticated: false };
+    if (authMethod === 'google') {
+      // Google OAuth flow
+      const token = await getValidAccessToken(); // This handles refresh automatically
+      
+      if (!token) {
+        return { isAuthenticated: false };
+      }
+
+      // Get user profile from Google OAuth storage
+      let userData = await getGoogleUserProfile();
+      
+      if (!userData) {
+        // Try to fetch from API if not in storage
+        const response = await fetch(`${CONFIG.API_BASE_URL}/me`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.user) {
+            userData = {
+              id: data.user.id,
+              email: data.user.email,
+              name: data.user.name || data.user.first_name || data.user.email,
+              credits_available: data.user.credits_available,
+              credits_total: data.user.credits_total,
+              answering_mode: data.user.answering_mode
+            };
+            
+            // Store for next time
+            await chrome.storage.local.set({ [CONFIG.STORAGE_KEYS.USER_DATA]: userData });
+          } else {
+            return { isAuthenticated: false };
+          }
+        } else {
+          return { isAuthenticated: false };
+        }
+      }
+
+      // Get token expiry from stored tokens
+      const tokens = await getAuthTokens();
+      const tokenExpiry = tokens?.expires_at;
+
+      // Refresh extended profile data
+      const extendedProfile = await fetchUserProfile(token);
+      const updatedUser = { ...userData, ...extendedProfile };
+
+      // Update storage if we got new data
+      if (Object.keys(extendedProfile).length > 0) {
+        await chrome.storage.local.set({ [CONFIG.STORAGE_KEYS.USER_DATA]: updatedUser });
+      }
+
+      return {
+        isAuthenticated: true,
+        user: updatedUser,
+        token,
+        tokenExpiry
+      };
+    } else {
+      // Email/password flow (Supabase)
+      const token = await getStoredToken();
+      const userData = await getStoredUserData();
+      const tokenExpiry = await getStoredTokenExpiry();
+
+      if (!token || !userData) {
+        return { isAuthenticated: false };
+      }
+
+      if (tokenExpiry && tokenExpiry <= Date.now()) {
+        // Token expired, try to refresh
+        const refreshedToken = await refreshToken();
+        if (!refreshedToken) {
+          await removeStoredToken();
+          await chrome.storage.local.remove(CONFIG.STORAGE_KEYS.USER_DATA);
+          return { isAuthenticated: false };
+        }
+        // Use the refreshed token
+        const newExpiry = await getStoredTokenExpiry();
+        const extendedProfile = await fetchUserProfile(refreshedToken);
+        const updatedUser = { ...userData, ...extendedProfile };
+        
+        if (Object.keys(extendedProfile).length > 0) {
+          await storeUserData(updatedUser);
+        }
+
+        return {
+          isAuthenticated: true,
+          user: updatedUser,
+          token: refreshedToken,
+          tokenExpiry: newExpiry
+        };
+      }
+
+      // Validate token with Supabase (but don't let it auto-refresh if it fails)
+      const supabase = initializeSupabase();
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+
+      if (error || !user) {
+        // Token is invalid, try to refresh
+        const refreshedToken = await refreshToken();
+        if (!refreshedToken) {
+          await removeStoredToken();
+          await chrome.storage.local.remove(CONFIG.STORAGE_KEYS.USER_DATA);
+          return { isAuthenticated: false };
+        }
+        
+        const newExpiry = await getStoredTokenExpiry();
+        const extendedProfile = await fetchUserProfile(refreshedToken);
+        const updatedUser = { ...userData, ...extendedProfile };
+        
+        if (Object.keys(extendedProfile).length > 0) {
+          await storeUserData(updatedUser);
+        }
+
+        return {
+          isAuthenticated: true,
+          user: updatedUser,
+          token: refreshedToken,
+          tokenExpiry: newExpiry
+        };
+      }
+
+      // Refresh extended profile data
+      const extendedProfile = await fetchUserProfile(token);
+      const updatedUser = { ...userData, ...extendedProfile };
+
+      // Update storage if we got new data
+      if (Object.keys(extendedProfile).length > 0) {
+        await storeUserData(updatedUser);
+      }
+
+      return {
+        isAuthenticated: true,
+        user: updatedUser,
+        token,
+        tokenExpiry
+      };
     }
-
-    // Check if token is expired
-    const supabase = initializeSupabase();
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-
-    if (error || !user) {
-      // Token is invalid, clear stored data
-      await removeStoredToken();
-      await chrome.storage.local.remove(CONFIG.STORAGE_KEYS.USER_DATA);
-      return { isAuthenticated: false };
-    }
-
-    // Refresh extended profile data
-    const extendedProfile = await fetchUserProfile(token);
-    const updatedUser = { ...userData, ...extendedProfile };
-
-    // Update storage if we got new data
-    if (Object.keys(extendedProfile).length > 0) {
-      await storeUserData(updatedUser);
-    }
-
-    return {
-      isAuthenticated: true,
-      user: updatedUser,
-      token,
-      tokenExpiry
-    };
   } catch (error) {
     console.error('Error getting auth state:', error);
     return { isAuthenticated: false };
@@ -504,20 +657,48 @@ export async function getAuthState(): Promise<AuthState> {
 
 /**
  * Refresh authentication token
+ * Supports both Google OAuth and email/password authentication
  */
 export async function refreshToken(): Promise<string | null> {
   try {
-    const supabase = initializeSupabase();
-    const { data, error } = await supabase.auth.refreshSession();
+    const authMethod = await detectAuthMethod();
 
-    if (error) {
-      throw error;
-    }
+    if (authMethod === 'google') {
+      // Use Google OAuth refresh flow
+      return await refreshGoogleToken();
+    } else if (authMethod === 'email') {
+      // Use Supabase refresh flow
+      const supabase = initializeSupabase();
+      const { data, error } = await supabase.auth.refreshSession();
 
-    if (data.session) {
-      const tokenExpiry = resolveSessionExpiry(data.session);
-      await storeToken(data.session.access_token, tokenExpiry);
-      return data.session.access_token;
+      if (error) {
+        // If refresh fails, it might be because there's no session
+        // Try to get the stored refresh token and use it
+        const storedRefreshToken = await chrome.storage.local.get(CONFIG.STORAGE_KEYS.REFRESH_TOKEN);
+        if (storedRefreshToken[CONFIG.STORAGE_KEYS.REFRESH_TOKEN]) {
+          // Supabase should handle this automatically, but if it doesn't work,
+          // we might need to sign in again
+          console.warn('Supabase refresh failed, user may need to re-authenticate');
+          return null;
+        }
+        throw error;
+      }
+
+      if (data.session) {
+        const tokenExpiry = resolveSessionExpiry(data.session);
+        await storeToken(data.session.access_token, tokenExpiry);
+        
+        // Also store refresh token if available
+        if (data.session.refresh_token) {
+          await chrome.storage.local.set({
+            [CONFIG.STORAGE_KEYS.REFRESH_TOKEN]: data.session.refresh_token
+          });
+        }
+        
+        return data.session.access_token;
+      }
+
+      return null;
     }
 
     return null;

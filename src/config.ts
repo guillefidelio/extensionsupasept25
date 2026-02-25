@@ -22,8 +22,7 @@ export const CONFIG = {
   EXTENSION_CALLBACK_PATH: '/auth/extension-callback',
   ALLOWED_ORIGINS: [
     'https://boltreply.io',
-    'https://www.boltreply.io',
-    'http://localhost:3000'
+    'https://www.boltreply.io'
   ],
   
   // Extension configuration

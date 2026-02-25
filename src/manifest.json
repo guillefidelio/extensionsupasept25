@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Bolt Reply AI",
   "version": "2.0.0",
-  "description": "AI-powered Chrome extension for generating Google My Business review replies",
+  "description": "AI-powered Chrome extension for generating review replies on any site 100% on brand",
   "permissions": [
     "activeTab",
     "storage",
@@ -17,8 +17,7 @@
   "externally_connectable": {
     "matches": [
       "https://boltreply.io/*",
-      "https://www.boltreply.io/*",
-      "http://localhost:3000/*"
+      "https://www.boltreply.io/*"
     ]
   },
   "background": {
