@@ -9,6 +9,7 @@ module.exports = {
     'background/service-worker': './src/background/service-worker.ts',
     'content/main-content-script': './src/content/content-script.ts',
     'content/iframe-script': './src/content/iframe-script.ts',
+    'content/universal-content-script': './src/content/universal-content-script.ts',
     'popup/popup': './src/popup/popup.tsx'
   },
   output: {
